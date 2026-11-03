@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYBERVERSE | High-End Gaming Universe</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <!-- Dynamic Warp Starfield Background Canvas -->
+  <canvas id="universe-canvas"></canvas>
+
+  <!-- Top Navigation Bar -->
+  <nav class="cyber-navbar">
+    <div class="brand-logo">
+      <span class="brand-icon">🌌</span>
+      <span>CYBERVERSE</span>
+    </div>
+
+    <div class="nav-actions">
+      <button class="cyber-btn sm secondary" id="btn-sound-toggle">🔊 SOUND: ON</button>
+
+      <!-- User Profile Badge (shown when logged in) -->
+      <div class="user-profile-badge hidden" id="user-profile-bar">
+        <div class="user-avatar-pill" id="profile-avatar">⚔️</div>
+        <div>
+          <span class="user-name-text" id="profile-name">Player</span>
+          <span class="user-level-tag" id="profile-level">LVL 1</span>
+        </div>
+        <div class="user-coins-pill">🪙 <span id="profile-coins">1,000</span></div>
+        <button class="cyber-btn sm secondary" id="btn-logout">Exit</button>
+      </div>
+
+      <!-- Sign In Button (shown when logged out) -->
+      <button class="cyber-btn sm primary-glow" id="btn-open-auth">⚡ SIGN IN / REGISTER</button>
+    </div>
+  </nav>
+
+  <!-- MAIN LOBBY VIEW -->
+  <main id="lobby-view">
+    <!-- Hero Portal Section -->
+    <section class="hero-portal">
+      <span class="universe-badge">NEXT-GEN MULTIPLAYER ARCADE</span>
+      <h1 class="hero-title">ENTER THE GAMING UNIVERSE</h1>
+      <p class="hero-subtitle">Experience high-stakes competitive board battles with Quantum AI and Real-time Multiplayer. Challenge friends across the cosmos with instant shareable room links.</p>
+
+      <!-- Quick Room Join Bar -->
+      <div class="quick-join-bar">
+        <input type="text" id="manual-room-input" class="cyber-input" placeholder="ENTER 6-DIGIT ROOM CODE" maxlength="6">
+        <button class="cyber-btn primary-glow" id="btn-manual-join-room">JOIN ROOM</button>
+      </div>
+    </section>
+
+    <!-- 4 Dynamic Games Grid -->
+    <section class="games-grid-container">
+      <!-- 1. CHESS -->
+      <div class="game-cyber-card" data-game="chess">
+        <div class="game-card-icon">♟️</div>
+        <h3 class="game-card-title">CYBER CHESS</h3>
+        <span class="game-card-badge">MINIMAX AI • 2 PLAYERS • MULTIPLAYER</span>
+        <p class="game-card-desc">Tactical warfare on a glowing 8x8 matrix. Play vs our neural engine or challenge a rival with move highlights and capture tracking.</p>
+        <div class="game-card-footer">
+          <button class="cyber-btn primary-glow btn-launch-game">ENTER CHESS MATRIX</button>
+        </div>
+      </div>
+
+      <!-- 2. CARROM -->
+      <div class="game-cyber-card" data-game="carrom">
+        <div class="game-card-icon">🎯</div>
+        <h3 class="game-card-title">QUANTUM CARROM</h3>
+        <span class="game-card-badge">2D PHYSICS • 1P TO 4P • AIM LASER</span>
+        <p class="game-card-desc">Realistic frictionless table physics. Aim your striker, adjust pull power, pocket White, Black, and Queen tokens, and compete with up to 4 players.</p>
+        <div class="game-card-footer">
+          <button class="cyber-btn primary-glow btn-launch-game">ENTER CARROM ARENA</button>
+        </div>
+      </div>
+
+      <!-- 3. LUDO -->
+      <div class="game-cyber-card" data-game="ludo">
+        <div class="game-card-icon">🎲</div>
+        <h3 class="game-card-title">CYBER LUDO</h3>
+        <span class="game-card-badge">2P / 3P / 4P • 3D DICE • CUTS & HOMES</span>
+        <p class="game-card-desc">Roll the neon holographic dice, escape the base, conquer safety zones, capture enemy tokens, and race all four units into the home core.</p>
+        <div class="game-card-footer">
+          <button class="cyber-btn primary-glow btn-launch-game">ENTER LUDO CIRCUIT</button>
+        </div>
+      </div>
+
+      <!-- 4. SNAKES & LADDERS -->
+      <div class="game-cyber-card" data-game="snakes">
+        <div class="game-card-icon">🐍</div>
+        <h3 class="game-card-title">SNAKES & LADDERS</h3>
+        <span class="game-card-badge">2P / 3P / 4P • PORTALS & GLITCHES</span>
+        <p class="game-card-desc">Ascend the 100-tile cyber tower! Ride laser beam ladders for instant teleports and dodge malicious glitch-snakes waiting to drag you down.</p>
+        <div class="game-card-footer">
+          <button class="cyber-btn primary-glow btn-launch-game">ENTER MATRIX RUN</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ACTIVE GAME ARENA VIEW (Hidden until launched) -->
+  <main id="arena-view" class="arena-view-container hidden">
+    <div class="arena-header-bar">
+      <button class="cyber-btn sm secondary" id="btn-back-to-lobby">⬅ BACK TO UNIVERSE</button>
+      <h2 class="arena-title" id="active-game-title">GAME ARENA</h2>
+      <div></div>
+    </div>
+
+    <!-- Active game gets rendered here -->
+    <div id="active-game-stage"></div>
+  </main>
+
+  <!-- ==========================================
+       MODALS
+       ========================================== -->
+
+  <!-- AUTHENTICATION MODAL -->
+  <div class="modal-overlay hidden" id="auth-modal">
+    <div class="modal-cyber-box">
+      <button class="modal-close-btn" id="btn-close-auth">&times;</button>
+      <h3 class="modal-title">CYBER IDENTITY</h3>
+      <p class="modal-subtitle">Sign in or register to unlock live stats, cloud rank, and custom avatars.</p>
+
+      <div class="auth-tabs-row">
+        <button class="auth-tab-btn active" id="tab-btn-login">LOGIN</button>
+        <button class="auth-tab-btn" id="tab-btn-register">SIGN UP</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form">
+        <div id="login-msg"></div>
+        <div class="form-group">
+          <label>USERNAME OR EMAIL</label>
+          <input type="text" id="login-identity" class="cyber-input" placeholder="e.g. CyberWarrior or user@mail.com" required>
+        </div>
+        <div class="form-group">
+          <label>PASSWORD</label>
+          <input type="password" id="login-password" class="cyber-input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="cyber-btn primary-glow" style="width:100%">⚡ ACCESS UNIVERSE</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="hidden">
+        <div id="reg-msg"></div>
+        <div class="form-group">
+          <label>WARRIOR CODENAME (USERNAME)</label>
+          <input type="text" id="reg-username" class="cyber-input" placeholder="e.g. NeonValkyrie" required>
+        </div>
+        <div class="form-group">
+          <label>EMAIL ADDRESS</label>
+          <input type="email" id="reg-email" class="cyber-input" placeholder="user@domain.com" required>
+        </div>
+        <div class="form-group">
+          <label>CHOOSE PASSWORD</label>
+          <input type="password" id="reg-password" class="cyber-input" placeholder="••••••••" required>
+        </div>
+        <div class="form-group">
+          <label>CHOOSE YOUR CYBER AVATAR</label>
+          <div class="avatar-picker-grid" id="reg-avatar-picker"></div>
+        </div>
+        <button type="submit" class="cyber-btn primary-glow" style="width:100%">🚀 INITIALIZE IDENTITY</button>
+      </form>
+
+      <div style="margin-top: 1.2rem; text-align: center;">
+        <button class="cyber-btn sm secondary" id="guest-login-btn">PLAY AS GUEST</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME MODE SELECTOR MODAL -->
+  <div class="modal-overlay hidden" id="mode-selector-modal">
+    <div class="modal-cyber-box">
+      <button class="modal-close-btn" id="btn-close-mode-modal">&times;</button>
+      <h3 class="modal-title">CHOOSE GAME MODE</h3>
+      <p class="modal-subtitle" id="mode-game-title">SELECT MATCH CONFIGURATION</p>
+      <div id="mode-options-container"></div>
+    </div>
+  </div>
+
+  <!-- GAME RULES MODAL (Shown before every game) -->
+  <div class="modal-overlay hidden" id="rules-modal">
+    <div class="modal-cyber-box wide">
+      <button class="modal-close-btn" id="rules-close-btn">&times;</button>
+      <div class="rules-header-badge" id="rules-game-badge">PROTOCOL</div>
+      <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom: 0.5rem;">
+        <span style="font-size: 2rem;" id="rules-game-icon">📜</span>
+        <h3 class="modal-title" id="rules-game-title">GAME RULES</h3>
+      </div>
+      <div class="rules-summary-box" id="rules-summary"></div>
+      <div id="rules-sections-container"></div>
+      <div style="margin-top: 1.5rem; text-align: right;">
+        <button class="cyber-btn primary-glow" id="rules-start-game-btn">⚡ PROCEED TO BATTLE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MULTIPLAYER ROOM & SHARE LINK MODAL -->
+  <div class="modal-overlay hidden" id="multiplayer-room-modal">
+    <div class="modal-cyber-box wide">
+      <button class="modal-close-btn" id="btn-close-room-modal">&times;</button>
+      <h3 class="modal-title">MULTIPLAYER CYBER LOBBY</h3>
+      <p class="modal-subtitle">Share this room link with your friends to play together in real time.</p>
+
+      <div class="room-code-display">
+        <div>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block; font-family:var(--font-heading);">ROOM CODE</span>
+          <span class="room-code-tag" id="room-display-code">------</span>
+        </div>
+        <button class="cyber-btn primary-glow sm" id="btn-copy-room-link">🔗 COPY SHARE LINK</button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; margin-bottom: 0.8rem; font-family:var(--font-heading); font-size:0.85rem;">
+        <span>GAME: <b id="room-game-title" style="color:var(--neon-cyan)">CHESS</b></span>
+        <span>PLAYERS: <b id="room-player-count" style="color:var(--neon-green)">1 / 2</b></span>
+      </div>
+
+      <div class="player-slots-container" id="room-player-slots"></div>
+
+      <!-- Live Room Chat -->
+      <div class="room-chat-box">
+        <div class="room-chat-messages" id="room-chat-messages">
+          <div class="chat-item" style="color:var(--text-muted)">Welcome to the match room! Send a message below.</div>
+        </div>
+        <div class="room-chat-input-row">
+          <input type="text" id="room-chat-input" class="cyber-input" placeholder="Type tactical message..." maxlength="120">
+          <button class="cyber-btn sm" id="btn-send-room-chat">SEND</button>
+        </div>
+      </div>
+
+      <div style="text-align: right;">
+        <button class="cyber-btn primary-glow" id="btn-room-start-game">🚀 START MATCH</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION PILL -->
+  <div class="cyber-toast hidden" id="cyber-toast">Notification</div>
+
+  <!-- SCRIPTS -->
+  <script src="/js/audio.js"></script>
+  <script src="/js/stars.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/rules.js"></script>
+  <script src="/js/multiplayer.js"></script>
+  <script src="/js/games/chess.js"></script>
+  <script src="/js/games/carrom.js"></script>
+  <script src="/js/games/ludo.js"></script>
+  <script src="/js/games/snakes.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>
