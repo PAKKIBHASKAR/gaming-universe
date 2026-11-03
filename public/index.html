@@ -20,6 +20,17 @@
     </div>
 
     <div class="nav-actions">
+      <!-- Spotify Gaming Lounge Button with Live Equalizer -->
+      <button class="cyber-btn sm spotify-btn primary-glow" id="btn-spotify-toggle">
+        🎧 SPOTIFY LOUNGE
+        <div class="equalizer-bars">
+          <span class="bar"></span>
+          <span class="bar"></span>
+          <span class="bar"></span>
+          <span class="bar"></span>
+        </div>
+      </button>
+
       <button class="cyber-btn sm secondary" id="btn-sound-toggle">🔊 SOUND: ON</button>
 
       <!-- User Profile Badge (shown when logged in) -->
@@ -299,6 +310,71 @@
     </div>
   </div>
 
+  <!-- SPOTIFY AUDIO LOUNGE SLIDING SIDE DRAWER -->
+  <div id="spotify-drawer" class="spotify-side-drawer hidden">
+    <div class="spotify-drawer-header">
+      <div style="display:flex; align-items:center; gap:0.6rem;">
+        <span style="font-size:1.6rem;">🎧</span>
+        <div>
+          <h3 class="drawer-title">SPOTIFY GAMING LOUNGE</h3>
+          <span class="drawer-sub">Live Synced Audio for Multiplayer</span>
+        </div>
+      </div>
+      <button class="drawer-close-btn" id="btn-close-spotify-drawer">&times;</button>
+    </div>
+
+    <!-- Multiplayer Parallel Sync Indicator -->
+    <div class="music-sync-badge-bar">
+      <span id="music-sync-status-badge">⚪ LOCAL PLAYBACK: Join a room to sync in parallel</span>
+    </div>
+
+    <!-- Direct Spotify Account Link -->
+    <div class="spotify-account-connect-box">
+      <div style="font-size:0.85rem; color:var(--text-light); margin-bottom:0.4rem;">
+        Connect to your original Spotify account to select your favorite songs & playlists:
+      </div>
+      <button class="cyber-btn primary-glow sm" id="btn-open-spotify-app" style="width:100%; justify-content:center;">
+        🟢 OPEN SPOTIFY WEB / APP
+      </button>
+      <div class="spotify-hint-text">
+        Tip: In Spotify, click <b>Share ➔ Copy Song/Playlist Link</b> and paste below to stream simultaneously on both devices!
+      </div>
+    </div>
+
+    <!-- Custom Spotify URL / URI Loader -->
+    <div class="spotify-custom-url-box">
+      <label>PASTE SPOTIFY LINK / TRACK / PLAYLIST:</label>
+      <div style="display:flex; gap:0.4rem; margin-top:0.3rem;">
+        <input type="text" id="input-spotify-url" class="cyber-input" placeholder="e.g. https://open.spotify.com/track/..." style="font-size:0.8rem;">
+        <button class="cyber-btn sm" id="btn-load-custom-spotify">LOAD & SYNC</button>
+      </div>
+    </div>
+
+    <!-- Spotify Embed Player -->
+    <div class="spotify-embed-container">
+      <iframe
+        id="spotify-embed-iframe"
+        style="border-radius:12px; width:100%; height:152px; border:none;"
+        src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8tZskqjRpZu?utm_source=generator&theme=0"
+        allowfullscreen=""
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy">
+      </iframe>
+    </div>
+
+    <!-- Volume & Controls -->
+    <div class="spotify-volume-control">
+      <label>🔊 MUSIC VOLUME:</label>
+      <input type="range" id="music-volume-slider" min="0" max="1" step="0.05" value="0.7">
+    </div>
+
+    <!-- Curated Gaming Soundtracks -->
+    <div class="curated-soundtracks-section">
+      <h4 class="section-heading">🔥 CURATED GAMING SOUNDTRACKS</h4>
+      <div id="curated-tracks-list" class="curated-tracks-list"></div>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION PILL -->
   <div class="cyber-toast hidden" id="cyber-toast">Notification</div>
 
@@ -308,6 +384,7 @@
   <script src="/js/auth.js"></script>
   <script src="/js/rules.js"></script>
   <script src="/js/multiplayer.js"></script>
+  <script src="/js/music.js"></script>
   <script src="/js/games/chess.js"></script>
   <script src="/js/games/carrom.js"></script>
   <script src="/js/games/ludo.js"></script>

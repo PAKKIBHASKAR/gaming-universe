@@ -107,6 +107,13 @@ class MultiplayerManager {
         this.appendChatMessage(msg);
       });
 
+      // Spotify / Audio Lounge Real-Time Parallel Music Sync
+      this.socket.on('music_synced', (data) => {
+        if (window.musicLounge) {
+          window.musicLounge.handleRemoteSync(data);
+        }
+      });
+
       this.socket.on('game_restarted', () => {
         this.showToast('Match was restarted by Host.');
         this.clearChat();
@@ -251,6 +258,14 @@ class MultiplayerManager {
       roomCode: this.currentRoom.code,
       actionType,
       payload
+    });
+  }
+
+  syncMusic(musicData) {
+    if (!this.currentRoom || !this.socket) return;
+    this.socket.emit('sync_music', {
+      roomCode: this.currentRoom.code,
+      musicData
     });
   }
 

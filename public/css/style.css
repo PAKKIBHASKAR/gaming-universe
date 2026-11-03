@@ -1378,3 +1378,303 @@ body {
     right: 0.5rem;
   }
 }
+
+/* ==========================================
+   SPOTIFY GAMING LOUNGE & EQUALIZER
+   ========================================== */
+.spotify-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(29, 185, 84, 0.15) !important;
+  border-color: #1db954 !important;
+  color: #1db954 !important;
+  box-shadow: 0 0 14px rgba(29, 185, 84, 0.3) !important;
+}
+
+.spotify-btn:hover {
+  background: rgba(29, 185, 84, 0.3) !important;
+  box-shadow: 0 0 22px rgba(29, 185, 84, 0.5) !important;
+  color: #fff !important;
+}
+
+.equalizer-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.equalizer-bars .bar {
+  width: 3px;
+  height: 4px;
+  background: #1db954;
+  border-radius: 2px;
+  transition: height 0.2s ease;
+}
+
+.equalizer-bars .bar.animating:nth-child(1) {
+  animation: eqBounce1 0.7s infinite alternate ease-in-out;
+}
+.equalizer-bars .bar.animating:nth-child(2) {
+  animation: eqBounce2 0.5s infinite alternate ease-in-out 0.15s;
+}
+.equalizer-bars .bar.animating:nth-child(3) {
+  animation: eqBounce3 0.6s infinite alternate ease-in-out 0.3s;
+}
+.equalizer-bars .bar.animating:nth-child(4) {
+  animation: eqBounce1 0.8s infinite alternate ease-in-out 0.2s;
+}
+
+@keyframes eqBounce1 {
+  0% { height: 4px; }
+  100% { height: 14px; }
+}
+@keyframes eqBounce2 {
+  0% { height: 2px; }
+  100% { height: 12px; }
+}
+@keyframes eqBounce3 {
+  0% { height: 6px; }
+  100% { height: 14px; }
+}
+
+/* Spotify Side Drawer */
+.spotify-side-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  max-width: 95vw;
+  height: 100vh;
+  background: rgba(8, 11, 28, 0.96);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.7);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(100%);
+}
+
+.spotify-side-drawer.visible {
+  transform: translateX(0);
+}
+
+.spotify-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 1rem;
+}
+
+.drawer-title {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.drawer-sub {
+  font-size: 0.75rem;
+  color: #1db954;
+  display: block;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.drawer-close-btn:hover {
+  color: var(--neon-magenta);
+}
+
+.music-sync-badge-bar {
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.spotify-account-connect-box {
+  background: rgba(29, 185, 84, 0.08);
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.spotify-hint-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
+.spotify-custom-url-box {
+  margin-bottom: 1.2rem;
+}
+
+.spotify-custom-url-box label {
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.spotify-embed-container {
+  margin-bottom: 1.2rem;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+.spotify-volume-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 1.4rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+}
+
+.spotify-volume-control label {
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.curated-soundtracks-section {
+  flex-grow: 1;
+}
+
+.curated-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.spotify-track-card {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(20, 26, 56, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.spotify-track-card:hover {
+  background: rgba(29, 185, 84, 0.12);
+  border-color: rgba(29, 185, 84, 0.4);
+  transform: translateX(-3px);
+}
+
+.spotify-track-card.active {
+  background: rgba(29, 185, 84, 0.2);
+  border-color: #1db954;
+  box-shadow: 0 0 14px rgba(29, 185, 84, 0.3);
+}
+
+.track-icon {
+  font-size: 1.4rem;
+}
+
+.track-meta {
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.track-title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.genre-pill {
+  color: #1db954;
+  font-weight: 600;
+}
+
+.track-play-btn {
+  background: rgba(29, 185, 84, 0.2);
+  border: 1px solid #1db954;
+  color: #1db954;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.spotify-track-card.active .track-play-btn {
+  background: #1db954;
+  color: #000;
+}
+
+/* Carrom controls & tip banner */
+.carrom-tip-banner {
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  line-height: 1.4;
+  margin-bottom: 0.8rem;
+  text-align: center;
+}
+
+/* Ludo safe stars and animated hops */
+.safe-star-badge {
+  position: absolute;
+  font-size: 1.1rem;
+  color: #ffd700;
+  filter: drop-shadow(0 0 4px #ffbd00);
+  pointer-events: none;
+}
+
+.ludo-token.selectable {
+  cursor: pointer;
+  animation: tokenPulse 0.9s infinite alternate;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.8);
+}
+
+@keyframes tokenPulse {
+  0% { transform: scale(1); box-shadow: 0 0 8px currentColor; }
+  100% { transform: scale(1.15); box-shadow: 0 0 20px #ffffff; }
+}
+

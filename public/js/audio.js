@@ -1,166 +1,209 @@
 // ==========================================
 // DYNAMIC SOUND SYNTHESIZER (Web Audio API)
-// Tailored procedural audio for all 4 games
+// High-Fidelity Harmonic Audio Engine for Cyberverse
+// Warm sine/triangle harmonics, acoustic body filters
 // ==========================================
 class SoundFX {
   constructor() {
     this.ctx = null;
     this.enabled = true;
+    this.masterGain = null;
+    this.volume = 0.7;
   }
 
   init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) this.ctx = new AudioCtx();
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+      }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
   }
 
-  playTone(freq, type = 'sine', duration = 0.15, gainVal = 0.1, pitchBend = null) {
+  setVolume(val) {
+    this.volume = Math.max(0, Math.min(1, val));
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+    }
+  }
+
+  toggle() {
+    this.enabled = !this.enabled;
+    return this.enabled;
+  }
+
+  toggleSound() {
+    return this.toggle();
+  }
+
+  playWarmTone(freq, type = 'sine', duration = 0.15, gainVal = 0.12, pitchBend = null, filterFreq = 2200) {
     if (!this.enabled) return;
     this.init();
-    if (!this.ctx) return;
+    if (!this.ctx || !this.masterGain) return;
 
     try {
+      const t = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(filterFreq, t);
 
       osc.type = type;
-      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      osc.frequency.setValueAtTime(freq, t);
       if (pitchBend) {
-        osc.frequency.exponentialRampToValueAtTime(pitchBend, this.ctx.currentTime + duration);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, pitchBend), t + duration);
       }
 
-      gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      // Smooth attack and natural exponential decay
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.linearRampToValueAtTime(gainVal, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
 
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
 
-      osc.start();
-      osc.stop(this.ctx.currentTime + duration);
+      osc.start(t);
+      osc.stop(t + duration);
     } catch (e) {
-      // Audio suppression on un-interacted page
+      // Audio suppression protection
     }
   }
 
   // UI Sounds
   click() {
-    this.playTone(880, 'sine', 0.04, 0.08);
+    this.playWarmTone(659.25, 'sine', 0.05, 0.08); // E5
   }
 
   buttonHover() {
-    this.playTone(440, 'triangle', 0.03, 0.02);
+    this.playWarmTone(440, 'triangle', 0.04, 0.03, null, 1200);
   }
 
   chatMessage() {
-    this.playTone(740, 'sine', 0.08, 0.1);
-    setTimeout(() => this.playTone(987.77, 'sine', 0.12, 0.09), 60);
+    this.playWarmTone(587.33, 'sine', 0.08, 0.1); // D5
+    setTimeout(() => this.playWarmTone(880, 'sine', 0.14, 0.09), 60); // A5
   }
 
-  // 1. CHESS SOUNDS
+  // 1. CHESS SOUNDS (Tactile acoustic feel)
   chessMove() {
-    this.playTone(200, 'triangle', 0.08, 0.15, 120);
-    setTimeout(() => this.playTone(320, 'sine', 0.05, 0.08), 30);
+    // Soft wooden tap
+    this.playWarmTone(180, 'triangle', 0.07, 0.18, 90, 800);
+    setTimeout(() => this.playWarmTone(280, 'sine', 0.05, 0.09, 140, 600), 20);
   }
 
   chessCapture() {
-    this.playTone(280, 'sawtooth', 0.12, 0.2, 80);
-    setTimeout(() => this.playTone(550, 'square', 0.08, 0.12, 180), 40);
+    // Crisp tactile impact
+    this.playWarmTone(240, 'triangle', 0.1, 0.22, 70, 1100);
+    setTimeout(() => this.playWarmTone(480, 'sine', 0.08, 0.12, 160, 900), 30);
   }
 
   chessCheck() {
-    this.playTone(600, 'sawtooth', 0.15, 0.15);
-    setTimeout(() => this.playTone(750, 'sawtooth', 0.25, 0.18), 120);
+    // Dramatic orchestral warning chord
+    this.playWarmTone(440, 'sine', 0.25, 0.14); // A4
+    setTimeout(() => this.playWarmTone(554.37, 'sine', 0.3, 0.14), 40); // C#5
+    setTimeout(() => this.playWarmTone(659.25, 'sine', 0.35, 0.16), 80); // E5
   }
 
-  // 2. CARROM SOUNDS
+  // 2. CARROM SOUNDS (Authentic wooden board physics)
   carromStrike() {
-    this.playTone(320, 'triangle', 0.07, 0.22, 140);
-    setTimeout(() => this.playTone(450, 'sine', 0.04, 0.1), 25);
+    // Deep solid striker cue impact
+    this.playWarmTone(160, 'triangle', 0.09, 0.25, 60, 750);
+    setTimeout(() => this.playWarmTone(340, 'sine', 0.04, 0.12, 120, 600), 20);
   }
 
   carromClack() {
-    this.playTone(580, 'triangle', 0.04, 0.12, 220);
+    // Crisp wooden disc-on-disc clack
+    this.playWarmTone(520, 'triangle', 0.04, 0.14, 210, 1800);
   }
 
   carromPocket() {
-    this.playTone(523.25, 'sine', 0.12, 0.18); // C5
-    setTimeout(() => this.playTone(659.25, 'sine', 0.14, 0.18), 80); // E5
-    setTimeout(() => this.playTone(783.99, 'sine', 0.25, 0.2), 160); // G5
+    // Deep pocket drop + cheerful reward chime
+    this.playWarmTone(120, 'triangle', 0.12, 0.2, 50, 400); // Thud in pocket
+    setTimeout(() => this.playWarmTone(523.25, 'sine', 0.12, 0.14), 70); // C5
+    setTimeout(() => this.playWarmTone(659.25, 'sine', 0.14, 0.16), 140); // E5
+    setTimeout(() => this.playWarmTone(783.99, 'sine', 0.25, 0.18), 210); // G5
   }
 
   carromFoul() {
-    this.playTone(240, 'sawtooth', 0.2, 0.25, 120);
+    // Gentle warning descending tone
+    this.playWarmTone(320, 'triangle', 0.18, 0.18, 160, 600);
   }
 
-  // 3. LUDO SOUNDS
+  // 3. LUDO SOUNDS (Warm, playful arcade)
   diceRoll() {
     if (!this.enabled) return;
     let count = 0;
     const interval = setInterval(() => {
-      const randFreq = 320 + Math.random() * 380;
-      this.playTone(randFreq, 'triangle', 0.03, 0.09);
+      const randFreq = 260 + Math.random() * 220;
+      this.playWarmTone(randFreq, 'triangle', 0.035, 0.09, null, 900);
       count++;
       if (count > 7) {
         clearInterval(interval);
-        setTimeout(() => this.playTone(600, 'sine', 0.08, 0.15), 30);
+        // Landing click
+        setTimeout(() => this.playWarmTone(520, 'sine', 0.08, 0.14, null, 1400), 40);
       }
     }, 45);
   }
 
   tokenStep() {
-    this.playTone(480, 'sine', 0.04, 0.08);
+    // Warm marimba pop
+    this.playWarmTone(440, 'sine', 0.05, 0.11, null, 1500);
   }
 
   tokenUnlock() {
-    const notes = [440, 554, 659, 880];
+    // Uplifting power-up arpeggio
+    const notes = [440, 554.37, 659.25, 880];
     notes.forEach((f, i) => {
-      setTimeout(() => this.playTone(f, 'sine', 0.09, 0.12), i * 60);
+      setTimeout(() => this.playWarmTone(f, 'sine', 0.11, 0.12), i * 65);
     });
   }
 
   tokenCapture() {
-    this.playTone(350, 'sawtooth', 0.15, 0.2, 100);
-    setTimeout(() => this.playTone(180, 'square', 0.18, 0.22, 60), 60);
+    // Fun arcade defeat burst
+    this.playWarmTone(330, 'triangle', 0.12, 0.2, 110, 1000);
+    setTimeout(() => this.playWarmTone(440, 'sine', 0.1, 0.15, 220), 50);
   }
 
   // 4. SNAKES & LADDERS SOUNDS
   ladderClimb() {
-    const melody = [330, 440, 550, 660, 880, 1100];
+    // Celestial crystalline ladder ascendance
+    const melody = [392, 493.88, 587.33, 659.25, 783.99, 987.77, 1174.66];
     melody.forEach((freq, idx) => {
-      setTimeout(() => this.playTone(freq, 'triangle', 0.1, 0.14), idx * 70);
+      setTimeout(() => this.playWarmTone(freq, 'sine', 0.12, 0.14, null, 2500), idx * 60);
     });
   }
 
   snakeBite() {
-    const tones = [700, 560, 420, 300, 180, 100];
+    // Ominous dramatic slide with low bass rumble
+    const tones = [550, 440, 330, 240, 160, 90];
     tones.forEach((freq, idx) => {
-      setTimeout(() => this.playTone(freq, 'sawtooth', 0.12, 0.16), idx * 75);
+      setTimeout(() => this.playWarmTone(freq, 'triangle', 0.14, 0.16, null, 700), idx * 80);
     });
   }
 
-  // VICTORY CELEBRATION
+  // VICTORY CELEBRATION CHORD
   victory() {
     const melody = [
-      { f: 523.25, d: 150 },
-      { f: 659.25, d: 150 },
-      { f: 783.99, d: 200 },
-      { f: 1046.50, d: 400 }
+      { f: 523.25, d: 150 }, // C5
+      { f: 659.25, d: 150 }, // E5
+      { f: 783.99, d: 180 }, // G5
+      { f: 1046.50, d: 380 } // C6
     ];
-    let time = 0;
-    melody.forEach((m) => {
-      setTimeout(() => this.playTone(m.f, 'square', 0.22, 0.18), time);
-      time += m.d;
+    melody.forEach((note, idx) => {
+      setTimeout(() => {
+        this.playWarmTone(note.f, 'sine', note.d / 1000, 0.2, null, 3000);
+      }, idx * 130);
     });
-  }
-
-  toggleSound() {
-    this.enabled = !this.enabled;
-    return this.enabled;
   }
 }
 
+// Global Sound Controller
 window.soundFX = new SoundFX();

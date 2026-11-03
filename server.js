@@ -456,6 +456,17 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Spotify / Audio Lounge Real-Time Multiplayer Parallel Sync
+  socket.on('sync_music', ({ roomCode, musicData }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    socket.to(roomCode).emit('music_synced', {
+      ...musicData,
+      senderId: socket.id
+    });
+    console.log(`🎵 Synced music in room ${roomCode}: ${musicData?.title || 'Track'}`);
+  });
+
   // Restart / Reset game
   socket.on('request_restart', ({ roomCode }) => {
     const room = rooms.get(roomCode);
