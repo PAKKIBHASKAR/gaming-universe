@@ -1,5 +1,6 @@
 // ==========================================
 // AUTHENTICATION & PROFILE CONTROLLER
+// Handles Sign Up, Login, and Avatar Customization
 // ==========================================
 const AVATARS = [
   { id: 'cyber_samurai', name: 'Cyber Samurai', icon: '⚔️', color: '#00f0ff' },
@@ -24,11 +25,11 @@ function initAuth() {
 
   // Try recovering session from token or cached user
   const cachedUser = localStorage.getItem('gaming_user');
-  if (cachedUser && authToken) {
+  if (cachedUser) {
     try {
       currentUser = JSON.parse(cachedUser);
       updateUserUI();
-      fetchFreshProfile();
+      if (authToken) fetchFreshProfile();
     } catch (e) {
       currentUser = null;
     }
@@ -38,31 +39,31 @@ function initAuth() {
   const loginForm = document.getElementById('login-form');
   const registerForm = document.getElementById('register-form');
 
-  if (loginForm) {
-    loginForm.addEventListener('submit', handleLogin);
-  }
-  if (registerForm) {
-    registerForm.addEventListener('submit', handleRegister);
-  }
+  if (loginForm) loginForm.addEventListener('submit', handleLogin);
+  if (registerForm) registerForm.addEventListener('submit', handleRegister);
 
   const guestBtn = document.getElementById('guest-login-btn');
-  if (guestBtn) {
-    guestBtn.addEventListener('click', handleGuestLogin);
-  }
+  if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
 
   const logoutBtn = document.getElementById('btn-logout');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', handleLogout);
-  }
+  if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+  // Quick switch links inside forms
+  const toRegisterLink = document.getElementById('link-to-register');
+  const toLoginLink = document.getElementById('link-to-login');
+  if (toRegisterLink) toRegisterLink.addEventListener('click', () => switchAuthTab('register'));
+  if (toLoginLink) toLoginLink.addEventListener('click', () => switchAuthTab('login'));
 }
 
 function renderAvatarSelectors() {
   const containers = document.querySelectorAll('.avatar-picker-grid');
   containers.forEach(container => {
     container.innerHTML = '';
-    AVATARS.forEach((av, idx) => {
+    const currentSelectedId = currentUser ? currentUser.avatar : 'cyber_samurai';
+
+    AVATARS.forEach((av) => {
       const el = document.createElement('div');
-      el.className = `avatar-option ${idx === 0 ? 'selected' : ''}`;
+      el.className = `avatar-option ${av.id === currentSelectedId ? 'selected' : ''}`;
       el.dataset.avatarId = av.id;
       el.innerHTML = `
         <span class="avatar-icon">${av.icon}</span>
@@ -72,6 +73,11 @@ function renderAvatarSelectors() {
         container.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
         el.classList.add('selected');
         window.soundFX && window.soundFX.click();
+
+        // If in multiplayer room, live update room profile
+        if (container.id === 'room-avatar-picker' && window.multiplayerManager) {
+          window.multiplayerManager.updateMyProfile(null, av.id);
+        }
       });
       container.appendChild(el);
     });
@@ -85,21 +91,45 @@ function getSelectedAvatar(containerId) {
   return selected ? selected.dataset.avatarId : 'cyber_samurai';
 }
 
+function switchAuthTab(targetTab) {
+  const tabLogin = document.getElementById('tab-btn-login');
+  const tabRegister = document.getElementById('tab-btn-register');
+  const panelLogin = document.getElementById('panel-login');
+  const panelRegister = document.getElementById('panel-register');
+  const modalTitle = document.getElementById('auth-modal-title');
+
+  if (targetTab === 'register') {
+    tabRegister.classList.add('active');
+    tabLogin.classList.remove('active');
+    panelRegister.classList.remove('hidden');
+    panelLogin.classList.add('hidden');
+    if (modalTitle) modalTitle.textContent = 'CREATE CYBER ACCOUNT';
+    document.getElementById('reg-username').focus();
+  } else {
+    tabLogin.classList.add('active');
+    tabRegister.classList.remove('active');
+    panelLogin.classList.remove('hidden');
+    panelRegister.classList.add('hidden');
+    if (modalTitle) modalTitle.textContent = 'ACCESS CYBER ACCOUNT';
+    document.getElementById('login-identity').focus();
+  }
+}
+
 async function handleRegister(e) {
   e.preventDefault();
   const username = document.getElementById('reg-username').value.trim();
   const email = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value;
+  const password = document.getElementById('reg-password').value.trim();
   const avatar = getSelectedAvatar('reg-avatar-picker');
   const msgEl = document.getElementById('reg-msg');
 
   if (!username || !email || !password) {
-    showAuthMsg(msgEl, 'Please fill in all fields', 'error');
+    showAuthMsg(msgEl, '⚠️ Please fill in codename, email, and password.', 'error');
     return;
   }
 
   try {
-    showAuthMsg(msgEl, 'Creating your Cyber identity...', 'info');
+    showAuthMsg(msgEl, '⚡ Creating your Cyber account...', 'info');
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -108,7 +138,7 @@ async function handleRegister(e) {
     const data = await res.json();
 
     if (!res.ok) {
-      showAuthMsg(msgEl, data.error || 'Registration failed', 'error');
+      showAuthMsg(msgEl, data.error || 'Registration failed.', 'error');
       return;
     }
 
@@ -117,31 +147,31 @@ async function handleRegister(e) {
     localStorage.setItem('gaming_token', authToken);
     localStorage.setItem('gaming_user', JSON.stringify(currentUser));
 
-    showAuthMsg(msgEl, 'Welcome to the Universe! Entering portal...', 'success');
+    showAuthMsg(msgEl, `🎉 Welcome, ${currentUser.username}! Entering the portal...`, 'success');
     window.soundFX && window.soundFX.victory();
 
     setTimeout(() => {
       closeAuthModal();
       updateUserUI();
-    }, 1000);
+    }, 900);
   } catch (err) {
-    showAuthMsg(msgEl, 'Network error. Try again.', 'error');
+    showAuthMsg(msgEl, 'Network issue. Please try again.', 'error');
   }
 }
 
 async function handleLogin(e) {
   e.preventDefault();
   const identity = document.getElementById('login-identity').value.trim();
-  const password = document.getElementById('login-password').value;
+  const password = document.getElementById('login-password').value.trim();
   const msgEl = document.getElementById('login-msg');
 
   if (!identity || !password) {
-    showAuthMsg(msgEl, 'Please enter username and password', 'error');
+    showAuthMsg(msgEl, '⚠️ Please enter username/email and password.', 'error');
     return;
   }
 
   try {
-    showAuthMsg(msgEl, 'Verifying credentials...', 'info');
+    showAuthMsg(msgEl, '⚡ Authenticating credentials...', 'info');
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -150,7 +180,18 @@ async function handleLogin(e) {
     const data = await res.json();
 
     if (!res.ok) {
-      showAuthMsg(msgEl, data.error || 'Invalid credentials', 'error');
+      if (data.userNotFound) {
+        showAuthMsg(msgEl, `⚠️ ${data.error}`, 'error');
+        // Auto-fill into register and prompt to switch
+        const regUser = document.getElementById('reg-username');
+        if (regUser) regUser.value = identity;
+        setTimeout(() => {
+          switchAuthTab('register');
+          showAuthMsg(document.getElementById('reg-msg'), `Account "${identity}" does not exist yet. Create your account below!`, 'info');
+        }, 1600);
+      } else {
+        showAuthMsg(msgEl, data.error || 'Invalid credentials.', 'error');
+      }
       return;
     }
 
@@ -159,13 +200,13 @@ async function handleLogin(e) {
     localStorage.setItem('gaming_token', authToken);
     localStorage.setItem('gaming_user', JSON.stringify(currentUser));
 
-    showAuthMsg(msgEl, `Access Granted! Welcome back, ${currentUser.username}`, 'success');
+    showAuthMsg(msgEl, `⚡ Access Granted! Welcome back, ${currentUser.username}!`, 'success');
     window.soundFX && window.soundFX.victory();
 
     setTimeout(() => {
       closeAuthModal();
       updateUserUI();
-    }, 900);
+    }, 800);
   } catch (err) {
     showAuthMsg(msgEl, 'Login request failed. Server offline?', 'error');
   }
@@ -197,7 +238,7 @@ function handleLogout() {
   localStorage.removeItem('gaming_user');
   updateUserUI();
   window.soundFX && window.soundFX.click();
-  openAuthModal();
+  openAuthModal('login');
 }
 
 async function fetchFreshProfile() {
@@ -213,7 +254,7 @@ async function fetchFreshProfile() {
       updateUserUI();
     }
   } catch (err) {
-    console.warn('Could not refresh profile:', err);
+    // Graceful offline fallback
   }
 }
 
@@ -244,11 +285,11 @@ async function recordGameOutcome(gameType, isWin, score = 100) {
 
 function updateUserUI() {
   const profileSection = document.getElementById('user-profile-bar');
-  const authPromptBtn = document.getElementById('btn-open-auth');
+  const authNavButtons = document.getElementById('auth-nav-buttons');
 
   if (currentUser) {
     if (profileSection) profileSection.classList.remove('hidden');
-    if (authPromptBtn) authPromptBtn.classList.add('hidden');
+    if (authNavButtons) authNavButtons.classList.add('hidden');
 
     const nameEl = document.getElementById('profile-name');
     const avatarEl = document.getElementById('profile-avatar');
@@ -259,13 +300,13 @@ function updateUserUI() {
     if (nameEl) nameEl.textContent = currentUser.username;
     if (avatarEl) {
       avatarEl.innerHTML = meta.icon;
-      avatarEl.title = meta.name;
+      avatarEl.title = `${meta.name} (Click to change)`;
     }
     if (coinsEl) coinsEl.textContent = (currentUser.coins || 1000).toLocaleString();
     if (levelEl) levelEl.textContent = `LVL ${currentUser.level || 1}`;
   } else {
     if (profileSection) profileSection.classList.add('hidden');
-    if (authPromptBtn) authPromptBtn.classList.remove('hidden');
+    if (authNavButtons) authNavButtons.classList.remove('hidden');
   }
 }
 
@@ -275,9 +316,12 @@ function showAuthMsg(el, text, type) {
   el.className = `auth-status-msg ${type}`;
 }
 
-function openAuthModal() {
+function openAuthModal(defaultTab = 'login') {
   const modal = document.getElementById('auth-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    switchAuthTab(defaultTab);
+  }
 }
 
 function closeAuthModal() {
@@ -290,6 +334,8 @@ window.authController = {
   getUser: () => currentUser || { username: 'CyberGamer', avatar: 'cyber_samurai', coins: 1000, level: 1 },
   openModal: openAuthModal,
   closeModal: closeAuthModal,
+  switchTab: switchAuthTab,
   recordOutcome: recordGameOutcome,
-  getAvatarMeta
+  getAvatarMeta,
+  AVATARS
 };

@@ -5,10 +5,15 @@
 class CyberLudoGame {
   constructor(containerId, options = {}) {
     this.container = document.getElementById(containerId);
-    this.playerCount = options.playerCount || 4; // 2, 3, or 4
     this.mode = options.mode || 'local'; // 'local', 'ai', 'multiplayer'
     this.roomData = options.roomData || null;
     this.isOnline = this.mode === 'multiplayer';
+
+    if (this.isOnline && this.roomData && this.roomData.maxPlayers) {
+      this.playerCount = this.roomData.maxPlayers;
+    } else {
+      this.playerCount = options.playerCount || 4;
+    }
 
     // Player color mapping
     this.PLAYER_CONFIG = [
@@ -18,13 +23,25 @@ class CyberLudoGame {
       { id: 3, key: 'blue', name: 'Blue Cyber', color: '#00f0ff', startIdx: 39, homeEntry: 37, avatar: '⚡' }
     ];
 
-    // Filter by player count (for 2P: Red & Yellow opposing; for 3P: Red, Green, Yellow; for 4P: all)
     if (this.playerCount === 2) {
       this.activePlayers = [this.PLAYER_CONFIG[0], this.PLAYER_CONFIG[2]];
     } else if (this.playerCount === 3) {
       this.activePlayers = [this.PLAYER_CONFIG[0], this.PLAYER_CONFIG[1], this.PLAYER_CONFIG[2]];
     } else {
       this.activePlayers = [...this.PLAYER_CONFIG];
+    }
+
+    // Assign custom avatars and names from multiplayer room if online
+    if (this.isOnline && this.roomData && this.roomData.players) {
+      this.activePlayers.forEach((p, idx) => {
+        const roomP = this.roomData.players[idx];
+        if (roomP) {
+          p.name = roomP.name;
+          if (idx === window.multiplayerManager.playerIndex) p.name += ' [YOU]';
+          const meta = window.authController.getAvatarMeta(roomP.avatar);
+          p.avatar = meta ? meta.icon : p.avatar;
+        }
+      });
     }
 
     this.currentTurnIdx = 0;
@@ -36,32 +53,22 @@ class CyberLudoGame {
 
     // Standard Ludo Path Coordinates (15x15 board)
     this.PATH_COORDS = [
-      // Red Track (0 to 4)
       { r: 6, c: 1 }, { r: 6, c: 2 }, { r: 6, c: 3 }, { r: 6, c: 4 }, { r: 6, c: 5 },
-      // Up into Green arm (5 to 11)
       { r: 5, c: 6 }, { r: 4, c: 6 }, { r: 3, c: 6 }, { r: 2, c: 6 }, { r: 1, c: 6 }, { r: 0, c: 6 },
       { r: 0, c: 7 }, { r: 0, c: 8 },
-      // Down Green arm (13 to 17)
       { r: 1, c: 8 }, { r: 2, c: 8 }, { r: 3, c: 8 }, { r: 4, c: 8 }, { r: 5, c: 8 },
-      // Right into Yellow arm (18 to 24)
       { r: 6, c: 9 }, { r: 6, c: 10 }, { r: 6, c: 11 }, { r: 6, c: 12 }, { r: 6, c: 13 }, { r: 6, c: 14 },
       { r: 7, c: 14 }, { r: 8, c: 14 },
-      // Left through Yellow arm (26 to 30)
       { r: 8, c: 13 }, { r: 8, c: 12 }, { r: 8, c: 11 }, { r: 8, c: 10 }, { r: 8, c: 9 },
-      // Down into Blue arm (31 to 37)
       { r: 9, c: 8 }, { r: 10, c: 8 }, { r: 11, c: 8 }, { r: 12, c: 8 }, { r: 13, c: 8 }, { r: 14, c: 8 },
       { r: 14, c: 7 }, { r: 14, c: 6 },
-      // Up Blue arm (39 to 43)
       { r: 13, c: 6 }, { r: 12, c: 6 }, { r: 11, c: 6 }, { r: 10, c: 6 }, { r: 9, c: 6 },
-      // Left into Red arm (44 to 50)
       { r: 8, c: 5 }, { r: 8, c: 4 }, { r: 8, c: 3 }, { r: 8, c: 2 }, { r: 8, c: 1 }, { r: 8, c: 0 },
       { r: 7, c: 0 }, { r: 6, c: 0 }
     ];
 
-    // Safe squares (indices in PATH_COORDS)
     this.SAFE_CELLS = [0, 8, 13, 21, 26, 34, 39, 47];
 
-    // Tokens state for each player: 4 tokens per player
     this.tokens = {};
     this.activePlayers.forEach(p => {
       this.tokens[p.key] = [
@@ -98,7 +105,7 @@ class CyberLudoGame {
           <div class="turn-indicator-pill" id="ludo-turn-pill">RED'S TURN</div>
         </div>
 
-        <div class="ludo-board-wrapper">
+        <div class="ludo-board-wrapper board-3d-effect">
           <div class="ludo-board-grid" id="ludo-board"></div>
         </div>
 
@@ -126,7 +133,6 @@ class CyberLudoGame {
     if (!boardEl) return;
     boardEl.innerHTML = '';
 
-    // 15x15 cells
     for (let r = 0; r < 15; r++) {
       for (let c = 0; c < 15; c++) {
         const cell = document.createElement('div');
@@ -134,7 +140,6 @@ class CyberLudoGame {
         cell.dataset.r = r;
         cell.dataset.c = c;
 
-        // Quadrants: Base areas
         if (r < 6 && c < 6) {
           cell.classList.add('ludo-base', 'red-base');
         } else if (r < 6 && c > 8) {
@@ -148,7 +153,6 @@ class CyberLudoGame {
           if (r === 7 && c === 7) cell.innerHTML = '⭐';
         }
 
-        // Home track colors
         if (r === 7 && c >= 1 && c <= 5) cell.classList.add('red-track');
         if (c === 7 && r >= 1 && r <= 5) cell.classList.add('green-track');
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('yellow-track');
@@ -162,7 +166,6 @@ class CyberLudoGame {
   }
 
   renderTokensOnBoard() {
-    // Clear all rendered tokens
     document.querySelectorAll('.ludo-token').forEach(t => t.remove());
 
     const activeP = this.activePlayers[this.currentTurnIdx];
@@ -175,7 +178,11 @@ class CyberLudoGame {
         tokenEl.innerHTML = p.avatar;
 
         const isCurrentPlayerToken = p.key === activeP.key;
-        const canMove = this.hasRolled && isCurrentPlayerToken && this.canTokenMove(p.key, token);
+        let canMove = this.hasRolled && isCurrentPlayerToken && this.canTokenMove(p.key, token);
+
+        if (this.isOnline && this.currentTurnIdx !== window.multiplayerManager.playerIndex) {
+          canMove = false;
+        }
 
         if (canMove) {
           tokenEl.classList.add('selectable');
@@ -196,7 +203,6 @@ class CyberLudoGame {
 
   getTokenScreenCoord(playerKey, token) {
     if (token.state === 'base') {
-      // 4 base slots
       const offsets = [
         { dr: 2, dc: 2 }, { dr: 2, dc: 3 }, { dr: 3, dc: 2 }, { dr: 3, dc: 3 }
       ];
@@ -216,15 +222,13 @@ class CyberLudoGame {
     }
 
     if (token.state === 'home-stretch') {
-      // Step 51 to 55
-      const stretchIdx = token.step - 50; // 1 to 5
+      const stretchIdx = token.step - 50;
       if (playerKey === 'red') return { r: 7, c: stretchIdx };
       if (playerKey === 'green') return { r: stretchIdx, c: 7 };
       if (playerKey === 'yellow') return { r: 7, c: 14 - stretchIdx };
       if (playerKey === 'blue') return { r: 14 - stretchIdx, c: 7 };
     }
 
-    // Common track
     const pathIdx = (token.step) % this.PATH_COORDS.length;
     return this.PATH_COORDS[pathIdx];
   }
@@ -242,6 +246,7 @@ class CyberLudoGame {
     if (!this.canRoll || this.hasRolled || this.isRolling) return;
 
     if (this.isOnline && this.currentTurnIdx !== window.multiplayerManager.playerIndex) {
+      window.soundFX && window.soundFX.carromFoul();
       return;
     }
 
@@ -272,14 +277,12 @@ class CyberLudoGame {
 
       this.renderTokensOnBoard();
 
-      // Check if player has any legal moves
       const activeP = this.activePlayers[this.currentTurnIdx];
       const moveable = this.tokens[activeP.key].filter(t => this.canTokenMove(activeP.key, t));
 
       if (moveable.length === 0) {
         setTimeout(() => this.nextTurn(), 1000);
-      } else if (moveable.length === 1 && (this.mode === 'ai' || activeP.key !== 'red')) {
-        // Auto-move single option for AI
+      } else if (moveable.length === 1 && (this.mode === 'ai' && this.currentTurnIdx !== 0)) {
         setTimeout(() => this.moveToken(activeP.key, moveable[0].id, shouldBroadcast), 400);
       }
     }, 500);
@@ -294,7 +297,7 @@ class CyberLudoGame {
     if (token.state === 'base') {
       token.state = 'track';
       token.step = pConfig.startIdx;
-      window.soundFX && window.soundFX.chessMove();
+      window.soundFX && window.soundFX.tokenUnlock();
     } else {
       token.step += this.diceValue;
 
@@ -307,7 +310,7 @@ class CyberLudoGame {
         window.soundFX && window.soundFX.victory();
         this.checkWinCondition(playerKey);
       } else {
-        window.soundFX && window.soundFX.chessMove();
+        window.soundFX && window.soundFX.tokenStep();
         this.checkCaptures(playerKey, token);
       }
     }
@@ -318,7 +321,6 @@ class CyberLudoGame {
 
     this.renderTokensOnBoard();
 
-    // Bonus roll on 6
     if (this.diceValue === 6) {
       this.hasRolled = false;
       this.updateStatus();
@@ -336,10 +338,9 @@ class CyberLudoGame {
       if (p.key !== playerKey) {
         this.tokens[p.key].forEach(other => {
           if (other.state === 'track' && (other.step % this.PATH_COORDS.length) === (movedToken.step % this.PATH_COORDS.length)) {
-            // Captured! Send back to base
             other.state = 'base';
             other.step = -1;
-            window.soundFX && window.soundFX.chessCapture();
+            window.soundFX && window.soundFX.tokenCapture();
           }
         });
       }
@@ -362,7 +363,6 @@ class CyberLudoGame {
     this.updateStatus();
     this.renderTokensOnBoard();
 
-    // AI Turn simulation if applicable
     const activeP = this.activePlayers[this.currentTurnIdx];
     if (this.mode === 'ai' && this.currentTurnIdx !== 0) {
       setTimeout(() => {

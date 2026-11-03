@@ -9,6 +9,7 @@ class CyberChessGame {
     this.roomData = options.roomData || null;
     this.isOnline = this.mode === 'multiplayer';
     this.myColor = 'w'; // 'w' or 'b'
+
     if (this.isOnline && this.roomData) {
       this.myColor = window.multiplayerManager.playerIndex === 0 ? 'w' : 'b';
     }
@@ -66,27 +67,43 @@ class CyberChessGame {
   }
 
   render() {
+    let p1Name = 'Player 1 (White)';
+    let p1Avatar = '⚔️';
+    let p2Name = this.mode === 'ai' ? 'Quantum Bot (Black)' : 'Player 2 (Black)';
+    let p2Avatar = this.mode === 'ai' ? '🤖' : '🥷';
+
+    if (this.isOnline && this.roomData && this.roomData.players) {
+      if (this.roomData.players[0]) {
+        p1Name = `${this.roomData.players[0].name} (White)${this.myColor === 'w' ? ' [YOU]' : ''}`;
+        p1Avatar = window.authController.getAvatarMeta(this.roomData.players[0].avatar).icon;
+      }
+      if (this.roomData.players[1]) {
+        p2Name = `${this.roomData.players[1].name} (Black)${this.myColor === 'b' ? ' [YOU]' : ''}`;
+        p2Avatar = window.authController.getAvatarMeta(this.roomData.players[1].avatar).icon;
+      }
+    }
+
     this.container.innerHTML = `
       <div class="game-arena-layout">
         <div class="game-top-bar">
-          <div class="player-badge-card" id="chess-black-card">
-            <span class="badge-avatar">${this.mode === 'ai' ? '🤖' : '🥷'}</span>
+          <div class="player-badge-card ${this.turn === 'b' ? 'active' : ''}" id="chess-black-card">
+            <span class="badge-avatar">${p2Avatar}</span>
             <div class="badge-text">
-              <span class="badge-name">${this.mode === 'ai' ? 'Quantum Bot (Black)' : 'Player 2 (Black)'}</span>
+              <span class="badge-name">${p2Name}</span>
               <div class="captured-tray" id="chess-captured-w"></div>
             </div>
           </div>
           <div class="turn-indicator-pill" id="chess-turn-pill">WHITE'S TURN</div>
-          <div class="player-badge-card" id="chess-white-card">
-            <span class="badge-avatar">⚔️</span>
+          <div class="player-badge-card ${this.turn === 'w' ? 'active' : ''}" id="chess-white-card">
+            <span class="badge-avatar">${p1Avatar}</span>
             <div class="badge-text">
-              <span class="badge-name">Player 1 (White)</span>
+              <span class="badge-name">${p1Name}</span>
               <div class="captured-tray" id="chess-captured-b"></div>
             </div>
           </div>
         </div>
 
-        <div class="chess-board-wrapper">
+        <div class="chess-board-wrapper board-3d-effect">
           <div class="chess-grid" id="chess-grid"></div>
         </div>
 
@@ -150,10 +167,11 @@ class CyberChessGame {
 
     // In online mode, you can only move your own color
     if (this.isOnline && this.turn !== this.myColor) {
+      window.soundFX && window.soundFX.carromFoul();
       return;
     }
 
-    // In AI mode, user can only move White
+    // In AI mode, user moves White
     if (this.mode === 'ai' && this.turn !== 'w') {
       return;
     }
@@ -296,6 +314,7 @@ class CyberChessGame {
       this.executeMove(bestMove.from, bestMove.to, false);
     } else {
       this.isGameOver = true;
+      window.soundFX && window.soundFX.victory();
       alert('Checkmate! White is victorious in the cyber grid!');
       window.authController.recordOutcome('chess', true, 200);
     }
@@ -315,7 +334,6 @@ class CyberChessGame {
 
     if (allMoves.length === 0) return null;
 
-    // Simple heuristic: maximize capture value + position
     allMoves.sort((a, b) => {
       const targetA = this.board[a.to.r][a.to.c];
       const targetB = this.board[b.to.r][b.to.c];
@@ -328,7 +346,6 @@ class CyberChessGame {
   }
 
   checkGameConditions() {
-    // Check if King was taken
     let whiteKing = false;
     let blackKing = false;
     for (let r = 0; r < 8; r++) {
@@ -359,6 +376,11 @@ class CyberChessGame {
       pill.style.color = this.turn === 'w' ? '#00f0ff' : '#ff0077';
     }
 
+    const cardW = document.getElementById('chess-white-card');
+    const cardB = document.getElementById('chess-black-card');
+    if (cardW) cardW.classList.toggle('active', this.turn === 'w');
+    if (cardB) cardB.classList.toggle('active', this.turn === 'b');
+
     const trayW = document.getElementById('chess-captured-w');
     const trayB = document.getElementById('chess-captured-b');
     if (trayW) trayW.textContent = this.capturedW.join(' ');
@@ -369,7 +391,7 @@ class CyberChessGame {
     this.setupInitialBoard();
     this.drawBoardGrid();
     this.updateStatus();
-    if (notifyRoom && this.isOnline) {
+    if (notifyRoom && this.isOnline && this.roomData) {
       window.multiplayerManager.socket.emit('request_restart', { roomCode: this.roomData.code });
     }
     window.soundFX && window.soundFX.click();

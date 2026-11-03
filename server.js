@@ -47,23 +47,34 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password, avatar } = req.body;
     if (!username || !email || !password) {
-      return res.status(400).json({ error: 'All fields are required' });
+      return res.status(400).json({ error: 'Please provide codename, email, and password.' });
     }
 
     const cleanUsername = username.trim();
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
     const chosenAvatar = avatar || 'cyber_samurai';
+
+    if (cleanUsername.length < 3) {
+      return res.status(400).json({ error: 'Codename must be at least 3 characters long.' });
+    }
+    if (cleanPassword.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters long.' });
+    }
 
     if (isDbConnected()) {
       const [existing] = await query(
-        'SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1',
+        'SELECT id, username, email FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1',
         [cleanUsername, cleanEmail]
       );
       if (existing && existing.length > 0) {
-        return res.status(409).json({ error: 'Username or email already registered' });
+        if (existing[0].username.toLowerCase() === cleanUsername.toLowerCase()) {
+          return res.status(409).json({ error: `Codename "${cleanUsername}" is already taken. Try another!` });
+        }
+        return res.status(409).json({ error: `Email "${cleanEmail}" is already registered. Please log in!` });
       }
 
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(cleanPassword, 10);
       const [result] = await query(
         'INSERT INTO users (username, email, password_hash, avatar, coins, xp, level) VALUES (?, ?, ?, ?, 1000, 0, 1)',
         [cleanUsername, cleanEmail, passwordHash, chosenAvatar]
@@ -81,17 +92,22 @@ app.post('/api/auth/register', async (req, res) => {
       }
 
       const token = jwt.sign({ id: userId, username: cleanUsername, email: cleanEmail }, JWT_SECRET, { expiresIn: '7d' });
+      console.log(`✅ User registered in MySQL: ${cleanUsername} (${cleanEmail})`);
       return res.status(201).json({
-        message: 'Registration successful',
+        message: 'Account created successfully! Entering Gaming Universe...',
         token,
         user: { id: userId, username: cleanUsername, email: cleanEmail, avatar: chosenAvatar, coins: 1000, xp: 0, level: 1 }
       });
     } else {
       // In-memory fallback
-      const exists = inMemoryStore.users.find(u => u.username === cleanUsername || u.email === cleanEmail);
-      if (exists) return res.status(409).json({ error: 'Username or email already registered' });
+      const exists = inMemoryStore.users.find(
+        u => u.username.toLowerCase() === cleanUsername.toLowerCase() || u.email.toLowerCase() === cleanEmail
+      );
+      if (exists) {
+        return res.status(409).json({ error: 'Codename or email already registered. Please log in!' });
+      }
 
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(cleanPassword, 10);
       const newUser = {
         id: Date.now(),
         username: cleanUsername,
@@ -104,15 +120,16 @@ app.post('/api/auth/register', async (req, res) => {
       };
       inMemoryStore.users.push(newUser);
       const token = jwt.sign({ id: newUser.id, username: newUser.username, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
+      console.log(`✅ User registered in offline memory: ${cleanUsername}`);
       return res.status(201).json({
-        message: 'Registration successful (offline store)',
+        message: 'Account created successfully! Entering Gaming Universe...',
         token,
         user: { id: newUser.id, username: newUser.username, email: newUser.email, avatar: chosenAvatar, coins: 1000, xp: 0, level: 1 }
       });
     }
   } catch (err) {
     console.error('Registration error:', err);
-    res.status(500).json({ error: 'Internal server error during registration' });
+    res.status(500).json({ error: 'Server error during registration. Please try again.' });
   }
 });
 
@@ -120,35 +137,44 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { identity, password } = req.body;
     if (!identity || !password) {
-      return res.status(400).json({ error: 'Username/Email and password required' });
+      return res.status(400).json({ error: 'Please enter your username/email and password.' });
     }
 
     const cleanIdentity = identity.trim();
+    const cleanPassword = password.trim();
 
     let user = null;
     if (isDbConnected()) {
       const [rows] = await query(
-        'SELECT * FROM users WHERE username = ? OR email = ? LIMIT 1',
+        'SELECT * FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1',
         [cleanIdentity, cleanIdentity.toLowerCase()]
       );
       if (rows && rows.length > 0) user = rows[0];
     } else {
-      user = inMemoryStore.users.find(u => u.username === cleanIdentity || u.email === cleanIdentity.toLowerCase());
+      user = inMemoryStore.users.find(
+        u => u.username.toLowerCase() === cleanIdentity.toLowerCase() || u.email.toLowerCase() === cleanIdentity.toLowerCase()
+      );
     }
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+      return res.status(404).json({
+        error: `No account found for "${cleanIdentity}". Please click SIGN UP to create your account!`,
+        userNotFound: true
+      });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    const isMatch = await bcrypt.compare(cleanPassword, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+      return res.status(401).json({
+        error: 'Incorrect password. Please verify and re-enter.'
+      });
     }
 
     const token = jwt.sign({ id: user.id, username: user.username, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    console.log(`⚡ Login successful: ${user.username}`);
 
     res.json({
-      message: 'Login successful',
+      message: `Access Granted! Welcome back, ${user.username}!`,
       token,
       user: {
         id: user.id,
@@ -162,7 +188,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error during login' });
+    res.status(500).json({ error: 'Server error during login. Please try again.' });
   }
 });
 
@@ -205,13 +231,11 @@ app.post('/api/game/record-result', authenticateToken, async (req, res) => {
     const xpGain = isWin ? 100 : 25;
 
     if (isDbConnected()) {
-      // Update coins & XP
       await query(
         'UPDATE users SET coins = coins + ?, xp = xp + ?, level = FLOOR(1 + (xp + ?) / 300) WHERE id = ?',
         [earnedCoins, xpGain, xpGain, req.user.id]
       );
 
-      // Update user stats
       const winInc = isWin ? 1 : 0;
       const lossInc = isWin ? 0 : 1;
       await query(
@@ -261,7 +285,7 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ----------------------------------------------------
-// MULTIPLAYER SOCKET.IO ENGINE
+// MULTIPLAYER SOCKET.IO ENGINE (2P / 3P / 4P)
 // ----------------------------------------------------
 const rooms = new Map();
 
@@ -275,9 +299,7 @@ function generateRoomCode() {
 }
 
 io.on('connection', (socket) => {
-  console.log(`🔌 New socket connected: ${socket.id}`);
-
-  // Create room
+  // Create room (2P, 3P, or 4P)
   socket.on('create_room', ({ gameType, playerName, avatar, maxPlayers }) => {
     const roomCode = generateRoomCode();
     const capacity = parseInt(maxPlayers || 2, 10);
@@ -287,6 +309,7 @@ io.on('connection', (socket) => {
       gameType,
       maxPlayers: capacity,
       hostId: socket.id,
+      started: false,
       players: [
         {
           id: socket.id,
@@ -309,7 +332,7 @@ io.on('connection', (socket) => {
       room,
       playerIndex: 0
     });
-    console.log(`🎮 Room created: ${roomCode} for [${gameType}] by ${playerName}`);
+    console.log(`🎮 Room created: ${roomCode} for [${gameType}] (${capacity} players) by ${playerName}`);
   });
 
   // Join room
@@ -321,8 +344,12 @@ io.on('connection', (socket) => {
       return socket.emit('join_error', { message: `Room ${code} does not exist.` });
     }
 
+    if (room.started) {
+      return socket.emit('join_error', { message: `Match in room ${code} has already started.` });
+    }
+
     if (room.players.length >= room.maxPlayers) {
-      return socket.emit('join_error', { message: `Room ${code} is full (${room.maxPlayers} players max).` });
+      return socket.emit('join_error', { message: `Room ${code} is full (${room.maxPlayers} players maximum).` });
     }
 
     const playerIndex = room.players.length;
@@ -344,13 +371,46 @@ io.on('connection', (socket) => {
       playerIndex
     });
 
-    // Notify all players in room
+    // Notify ALL players in room
     io.to(code).emit('player_joined', {
       room,
       newPlayer
     });
 
     console.log(`👥 Player ${playerName} joined room ${code} (${room.players.length}/${room.maxPlayers})`);
+  });
+
+  // Update Player Profile in Room
+  socket.on('update_player_profile', ({ roomCode, name, avatar }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (player) {
+      if (name) player.name = name.trim();
+      if (avatar) player.avatar = avatar;
+      io.to(roomCode).emit('player_updated', { room, player });
+    }
+  });
+
+  // HOST STARTS THE MATCH FOR ALL PLAYERS
+  socket.on('start_match', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    if (socket.id !== room.hostId) {
+      return socket.emit('join_error', { message: 'Only the room Host can launch the match.' });
+    }
+
+    if (room.players.length < 2) {
+      return socket.emit('join_error', { message: 'At least 2 players are required to start.' });
+    }
+
+    room.started = true;
+    console.log(`🚀 Host launched match for all players in room: ${roomCode}`);
+    io.to(roomCode).emit('match_started', {
+      room,
+      gameType: room.gameType
+    });
   });
 
   // Relay game actions (board moves, dice rolls, striker shots)
@@ -366,7 +426,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // In-game live chat
+  // In-game live chat (works both in room and during active match)
   socket.on('send_chat', ({ roomCode, senderName, avatar, text }) => {
     if (!roomCode || !text) return;
     io.to(roomCode).emit('new_chat_message', {
@@ -419,7 +479,7 @@ async function start() {
   🚀 GAMING UNIVERSE CYBER-PORTAL IS LIVE
   🌐 Local URL:  http://localhost:${PORT}
   🕹️ Games:      Chess, Carrom, Ludo, Snakes & Ladders
-  🎲 Modes:      Single Player AI & Realtime Multiplayer
+  🎲 Modes:      Single Player AI & 2P/3P/4P Multiplayer
   💾 Database:   Aiven Cloud MySQL (${isDbConnected() ? 'ONLINE' : 'FALLBACK'})
   ======================================================
     `);

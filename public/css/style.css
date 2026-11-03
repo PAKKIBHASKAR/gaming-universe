@@ -6,7 +6,7 @@
 
 :root {
   --bg-primary: #060714;
-  --bg-card: rgba(14, 18, 44, 0.75);
+  --bg-card: rgba(14, 18, 44, 0.78);
   --border-neon: rgba(0, 240, 255, 0.25);
   --neon-cyan: #00f0ff;
   --neon-magenta: #ff007f;
@@ -52,8 +52,8 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(8, 10, 26, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(8, 10, 26, 0.88);
+  backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-neon);
   display: flex;
   justify-content: space-between;
@@ -82,6 +82,11 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.auth-nav-group {
+  display: flex;
+  gap: 0.6rem;
 }
 
 .user-profile-badge {
@@ -183,6 +188,13 @@ body {
   box-shadow: 0 0 25px rgba(0, 240, 255, 0.9);
 }
 
+.cyber-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* ========================================================
    PORTAL HERO SECTION
    ======================================================== */
@@ -221,7 +233,7 @@ body {
 .hero-subtitle {
   color: var(--text-muted);
   font-size: 1.15rem;
-  max-width: 650px;
+  max-width: 680px;
   margin: 0 auto 2rem;
 }
 
@@ -266,16 +278,17 @@ body {
 .game-cyber-card {
   background: var(--bg-card);
   border: 1px solid var(--border-neon);
-  border-radius: 12px;
-  padding: 1.6rem;
+  border-radius: 14px;
+  padding: 1.8rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
   position: relative;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+  transition: all 0.35s cubic-bezier(0.165, 0.84, 0.44, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .game-cyber-card::before {
@@ -290,20 +303,20 @@ body {
 }
 
 .game-cyber-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-8px) scale(1.02);
   border-color: var(--neon-cyan);
-  box-shadow: 0 15px 35px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 16px 40px rgba(0, 240, 255, 0.25);
 }
 
 .game-card-icon {
-  font-size: 3.5rem;
+  font-size: 3.8rem;
   margin-bottom: 1rem;
-  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.4));
+  filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.5));
   transition: transform 0.3s;
 }
 
 .game-cyber-card:hover .game-card-icon {
-  transform: scale(1.12);
+  transform: scale(1.15) rotate(3deg);
 }
 
 .game-card-title {
@@ -339,12 +352,13 @@ body {
 }
 
 /* ========================================================
-   ARENA VIEW & GAME STAGES
+   ARENA VIEW & GAME STAGES (3D PERSPECTIVE)
    ======================================================== */
 .arena-view-container {
   max-width: 1000px;
   margin: 1.5rem auto;
   padding: 0 1rem;
+  position: relative;
 }
 
 .arena-header-bar {
@@ -362,7 +376,7 @@ body {
 }
 
 .game-arena-layout {
-  background: rgba(14, 18, 44, 0.85);
+  background: rgba(14, 18, 44, 0.88);
   border: 1px solid var(--border-neon);
   border-radius: 14px;
   padding: 1.5rem;
@@ -370,6 +384,16 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5);
+}
+
+.board-3d-effect {
+  perspective: 1000px;
+  transition: transform 0.3s ease;
+}
+
+.board-3d-effect:hover {
+  transform: translateY(-2px);
 }
 
 .game-top-bar {
@@ -409,16 +433,18 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 0.35rem 0.8rem;
   border-radius: 8px;
+  transition: all 0.25s;
 }
 
 .player-badge-card.active {
   border-color: var(--neon-cyan);
-  background: rgba(0, 240, 255, 0.1);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+  background: rgba(0, 240, 255, 0.12);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.35);
+  transform: scale(1.04);
 }
 
 .badge-avatar {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
 }
 
 .badge-name {
@@ -440,6 +466,71 @@ body {
 }
 
 /* ========================================================
+   IN-GAME LIVE CHAT DRAWER
+   ======================================================== */
+.arena-chat-drawer {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 320px;
+  background: rgba(12, 16, 40, 0.95);
+  border: 1px solid var(--neon-cyan);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(14px);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.arena-chat-drawer.collapsed {
+  display: none;
+}
+
+.chat-drawer-header {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.arena-chat-messages {
+  height: 180px;
+  overflow-y: auto;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.arena-chat-input-row {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.arena-chat-input-row input {
+  flex-grow: 1;
+}
+
+.unread-badge {
+  background: var(--neon-magenta);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 900;
+  padding: 0.15rem 0.45rem;
+  border-radius: 10px;
+  margin-left: 0.3rem;
+}
+
+/* ========================================================
    CHESS BOARD STYLES
    ======================================================== */
 .chess-board-wrapper {
@@ -450,11 +541,11 @@ body {
 
 .chess-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(36px, 60px));
-  grid-template-rows: repeat(8, minmax(36px, 60px));
+  grid-template-columns: repeat(8, minmax(36px, 62px));
+  grid-template-rows: repeat(8, minmax(36px, 62px));
   border: 4px solid #1a224a;
   border-radius: 6px;
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 240, 255, 0.2);
 }
 
 .chess-cell {
@@ -524,7 +615,7 @@ body {
   max-width: 90vw;
   max-height: 70vh;
   border-radius: 10px;
-  box-shadow: 0 0 35px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 12px 35px rgba(0, 240, 255, 0.25);
   cursor: crosshair;
 }
 
@@ -561,7 +652,7 @@ body {
   border: 4px solid #1a224a;
   background: #0d1127;
   border-radius: 8px;
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 12px 35px rgba(0, 240, 255, 0.25);
 }
 
 .ludo-cell {
@@ -664,11 +755,11 @@ body {
 
 .snakes-grid {
   display: grid;
-  grid-template-columns: repeat(10, minmax(28px, 48px));
-  grid-template-rows: repeat(10, minmax(28px, 48px));
+  grid-template-columns: repeat(10, minmax(28px, 50px));
+  grid-template-rows: repeat(10, minmax(28px, 50px));
   border: 4px solid #1a224a;
   border-radius: 8px;
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 12px 35px rgba(0, 240, 255, 0.25);
   background: #0b0e24;
 }
 
@@ -737,8 +828,8 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(4, 6, 16, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(4, 6, 16, 0.88);
+  backdrop-filter: blur(14px);
   z-index: 500;
   display: flex;
   align-items: center;
@@ -747,7 +838,7 @@ body {
 }
 
 .modal-cyber-box {
-  background: rgba(14, 18, 44, 0.95);
+  background: rgba(14, 18, 44, 0.96);
   border: 1px solid var(--neon-cyan);
   border-radius: 14px;
   width: 100%;
@@ -806,10 +897,10 @@ body {
   border: none;
   color: var(--text-muted);
   font-family: var(--font-heading);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  padding: 0.3rem 0.8rem;
+  padding: 0.3rem 0.6rem;
   position: relative;
 }
 
@@ -826,6 +917,20 @@ body {
   height: 2px;
   background: var(--neon-cyan);
   box-shadow: 0 0 8px var(--neon-cyan);
+}
+
+.auth-switch-helper {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.auth-switch-helper span {
+  color: var(--neon-cyan);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .form-group {
@@ -877,26 +982,26 @@ body {
 }
 
 .auth-status-msg {
-  padding: 0.5rem;
+  padding: 0.6rem;
   border-radius: 6px;
   font-size: 0.85rem;
   margin-bottom: 1rem;
 }
 
 .auth-status-msg.error {
-  background: rgba(255, 0, 85, 0.15);
+  background: rgba(255, 0, 85, 0.18);
   border: 1px solid var(--neon-magenta);
   color: #ff4d88;
 }
 
 .auth-status-msg.success {
-  background: rgba(0, 255, 102, 0.15);
+  background: rgba(0, 255, 102, 0.18);
   border: 1px solid var(--neon-green);
   color: var(--neon-green);
 }
 
 .auth-status-msg.info {
-  background: rgba(0, 240, 255, 0.15);
+  background: rgba(0, 240, 255, 0.18);
   border: 1px solid var(--neon-cyan);
   color: var(--neon-cyan);
 }
@@ -935,6 +1040,16 @@ body {
 .online-pill {
   background: var(--neon-magenta);
   color: #fff;
+  font-size: 0.65rem;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+}
+
+.local-pill {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--neon-cyan);
   font-size: 0.65rem;
   font-family: var(--font-heading);
   font-weight: 800;
@@ -994,7 +1109,7 @@ body {
   border: 1px solid var(--border-neon);
   padding: 0.8rem 1.2rem;
   border-radius: 8px;
-  margin-bottom: 1.2rem;
+  margin-bottom: 1rem;
 }
 
 .room-code-tag {
@@ -1005,11 +1120,27 @@ body {
   letter-spacing: 3px;
 }
 
+.room-customize-bar {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.8rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.room-customize-bar label {
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  color: var(--neon-cyan);
+  letter-spacing: 1.5px;
+  display: block;
+}
+
 .player-slots-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.8rem;
-  margin-bottom: 1.4rem;
+  margin-bottom: 1.2rem;
 }
 
 .player-slot-card {
@@ -1048,7 +1179,6 @@ body {
 
 .slot-status {
   font-size: 0.75rem;
-  color: var(--neon-green);
 }
 
 .room-chat-box {
@@ -1060,14 +1190,19 @@ body {
 }
 
 .room-chat-messages {
-  height: 100px;
+  height: 90px;
   overflow-y: auto;
   margin-bottom: 0.6rem;
   font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.chat-item {
-  margin-bottom: 0.3rem;
+.chat-item.notice {
+  color: var(--neon-cyan);
+  font-style: italic;
+  font-size: 0.75rem;
 }
 
 .chat-time {
@@ -1138,5 +1273,10 @@ body {
   }
   .chess-piece {
     font-size: 1.6rem;
+  }
+  .arena-chat-drawer {
+    width: 280px;
+    bottom: 0.5rem;
+    right: 0.5rem;
   }
 }

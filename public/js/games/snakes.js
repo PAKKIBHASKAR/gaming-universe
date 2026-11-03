@@ -5,10 +5,15 @@
 class CyberSnakesGame {
   constructor(containerId, options = {}) {
     this.container = document.getElementById(containerId);
-    this.playerCount = options.playerCount || 2; // 2, 3, or 4
     this.mode = options.mode || 'local'; // 'local', 'ai', 'multiplayer'
     this.roomData = options.roomData || null;
     this.isOnline = this.mode === 'multiplayer';
+
+    if (this.isOnline && this.roomData && this.roomData.maxPlayers) {
+      this.playerCount = this.roomData.maxPlayers;
+    } else {
+      this.playerCount = options.playerCount || 2;
+    }
 
     // Board Portals (Ladders: Start -> End)
     this.LADDERS = {
@@ -34,17 +39,31 @@ class CyberSnakesGame {
       99: 78
     };
 
-    this.PLAYERS_PRESET = [
-      { id: 0, name: 'Cyber Hero', color: '#00f0ff', avatar: '⚔️', pos: 0 },
-      { id: 1, name: 'Neon Shadow', color: '#ff0077', avatar: '🥷', pos: 0 },
-      { id: 2, name: 'Solar Marine', color: '#ffbd00', avatar: '👨‍🚀', pos: 0 },
-      { id: 3, name: 'Valkyrie Volt', color: '#00ff66', avatar: '⚡', pos: 0 }
-    ];
+    const colors = ['#00f0ff', '#ff0077', '#ffbd00', '#00ff66'];
+    const defaultAvatars = ['⚔️', '🥷', '👨‍🚀', '⚡'];
 
-    this.players = this.PLAYERS_PRESET.slice(0, this.playerCount);
-    if (this.mode === 'ai' && this.players[1]) {
-      this.players[1].name = 'Cyber AI Bot';
-      this.players[1].avatar = '🤖';
+    this.players = [];
+    for (let i = 0; i < this.playerCount; i++) {
+      let pName = `Player ${i + 1}`;
+      let pAvatar = defaultAvatars[i];
+
+      if (this.mode === 'ai') {
+        pName = i === 0 ? 'Player 1' : 'Cyber AI Bot';
+        pAvatar = i === 0 ? '⚔️' : '🤖';
+      } else if (this.isOnline && this.roomData && this.roomData.players && this.roomData.players[i]) {
+        pName = this.roomData.players[i].name;
+        if (i === window.multiplayerManager.playerIndex) pName += ' [YOU]';
+        const meta = window.authController.getAvatarMeta(this.roomData.players[i].avatar);
+        pAvatar = meta ? meta.icon : pAvatar;
+      }
+
+      this.players.push({
+        id: i,
+        name: pName,
+        color: colors[i],
+        avatar: pAvatar,
+        pos: 0
+      });
     }
 
     this.currentTurn = 0;
@@ -75,7 +94,7 @@ class CyberSnakesGame {
           <div class="turn-indicator-pill" id="snakes-turn-pill">PLAYER 1'S ROLL</div>
         </div>
 
-        <div class="snakes-board-wrapper">
+        <div class="snakes-board-wrapper board-3d-effect">
           <div class="snakes-grid" id="snakes-grid"></div>
         </div>
 
@@ -104,7 +123,6 @@ class CyberSnakesGame {
     if (!grid) return;
     grid.innerHTML = '';
 
-    // 10 rows: top row is 91-100 or 100-91
     for (let row = 9; row >= 0; row--) {
       const isEvenRow = (9 - row) % 2 === 1;
       for (let col = 0; col < 10; col++) {
@@ -129,7 +147,6 @@ class CyberSnakesGame {
   }
 
   renderTokens() {
-    // Clear slots
     document.querySelectorAll('.cell-tokens-slot').forEach(s => s.innerHTML = '');
 
     this.players.forEach(p => {
@@ -151,6 +168,7 @@ class CyberSnakesGame {
   handleDiceClick() {
     if (this.isRolling) return;
     if (this.isOnline && this.currentTurn !== window.multiplayerManager.playerIndex) {
+      window.soundFX && window.soundFX.carromFoul();
       return;
     }
 
@@ -186,7 +204,6 @@ class CyberSnakesGame {
     const player = this.players[this.currentTurn];
     let target = player.pos + steps;
 
-    // Must reach 100 exactly, else bounces back
     if (target > 100) {
       const excess = target - 100;
       target = 100 - excess;
@@ -194,7 +211,7 @@ class CyberSnakesGame {
 
     player.pos = target;
     this.renderTokens();
-    window.soundFX && window.soundFX.chessMove();
+    window.soundFX && window.soundFX.tokenStep();
 
     // Check Ladder
     if (this.LADDERS[player.pos]) {
@@ -227,7 +244,6 @@ class CyberSnakesGame {
       return;
     }
 
-    // Roll 6 gives extra turn
     if (this.diceValue !== 6) {
       this.currentTurn = (this.currentTurn + 1) % this.players.length;
     }

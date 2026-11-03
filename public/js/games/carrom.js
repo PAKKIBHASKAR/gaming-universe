@@ -1,16 +1,22 @@
 // ==========================================
 // GAME 2: CYBER CARROM BOARD (PHYSICS ENGINE)
-// Supports vs Computer & 2P / 3P / 4P Modes
+// Supports vs Computer & 2P / 3P / 4P (Local & Online)
 // ==========================================
 class CyberCarromGame {
   constructor(containerId, options = {}) {
     this.container = document.getElementById(containerId);
-    this.playerCount = options.playerCount || 2; // 1 (vs AI), 2, 3, 4
-    this.isAI = this.playerCount === 1;
-    this.totalSeats = this.isAI ? 2 : this.playerCount;
     this.mode = options.mode || 'local';
     this.roomData = options.roomData || null;
     this.isOnline = this.mode === 'multiplayer';
+
+    if (this.isOnline && this.roomData && this.roomData.maxPlayers) {
+      this.playerCount = this.roomData.maxPlayers;
+    } else {
+      this.playerCount = options.playerCount || 2;
+    }
+
+    this.isAI = !this.isOnline && this.playerCount === 1;
+    this.totalSeats = this.isAI ? 2 : this.playerCount;
 
     this.canvas = null;
     this.ctx = null;
@@ -69,17 +75,27 @@ class CyberCarromGame {
   initPlayers() {
     this.players = [];
     const colors = ['#00f0ff', '#ff0077', '#ffbd00', '#00ff66'];
-    const names = this.isAI 
-      ? ['Player 1', 'Cyber AI Bot']
-      : ['Player 1', 'Player 2', 'Player 3', 'Player 4'].slice(0, this.totalSeats);
 
     for (let i = 0; i < this.totalSeats; i++) {
+      let pName = `Player ${i + 1}`;
+      let pAvatar = ['⚔️', '🥷', '👨‍🚀', '⚡'][i];
+
+      if (this.isAI) {
+        pName = i === 0 ? 'Player 1' : 'Cyber AI Bot';
+        pAvatar = i === 0 ? '⚔️' : '🤖';
+      } else if (this.isOnline && this.roomData && this.roomData.players && this.roomData.players[i]) {
+        pName = this.roomData.players[i].name;
+        if (i === window.multiplayerManager.playerIndex) pName += ' [YOU]';
+        const meta = window.authController.getAvatarMeta(this.roomData.players[i].avatar);
+        pAvatar = meta ? meta.icon : pAvatar;
+      }
+
       this.players.push({
         id: i,
-        name: names[i],
+        name: pName,
         color: colors[i],
         score: 0,
-        avatar: i === 1 && this.isAI ? '🤖' : ['⚔️', '🥷', '👨‍🚀', '⚡'][i]
+        avatar: pAvatar
       });
     }
   }
@@ -92,10 +108,10 @@ class CyberCarromGame {
           <div class="turn-indicator-pill" id="carrom-turn-pill">PLAYER 1'S SHOT</div>
         </div>
 
-        <div class="carrom-board-wrapper">
+        <div class="carrom-board-wrapper board-3d-effect">
           <canvas id="carrom-canvas" width="600" height="600"></canvas>
           <div class="striker-slider-container">
-            <label>Striker Position:</label>
+            <label>Baseline Position:</label>
             <input type="range" id="striker-baseline-slider" min="150" max="450" value="300" step="1">
           </div>
         </div>
@@ -127,10 +143,6 @@ class CyberCarromGame {
     this.canvas = document.getElementById('carrom-canvas');
     this.ctx = this.canvas.getContext('2d');
 
-    const rect = this.canvas.getBoundingClientRect();
-    this.scale = this.canvas.width / rect.width;
-
-    // Mouse / Touch events for aiming
     const getPos = (e) => {
       const b = this.canvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -144,10 +156,13 @@ class CyberCarromGame {
     const startAim = (pos) => {
       if (this.isMoving) return;
       if (this.isAI && this.currentTurn === 1) return;
-      if (this.isOnline && this.currentTurn !== window.multiplayerManager.playerIndex) return;
+      if (this.isOnline && this.currentTurn !== window.multiplayerManager.playerIndex) {
+        window.soundFX && window.soundFX.carromFoul();
+        return;
+      }
 
       const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
-      if (dist < this.STRIKER_RADIUS * 2) {
+      if (dist < this.STRIKER_RADIUS * 2.2) {
         this.isAiming = true;
         this.dragStart = pos;
         this.dragCurrent = pos;
@@ -217,7 +232,7 @@ class CyberCarromGame {
         vx: 0,
         vy: 0,
         radius: this.COIN_RADIUS,
-        color: isWhite ? '#ffffff' : '#333344',
+        color: isWhite ? '#ffffff' : '#2a2d48',
         border: isWhite ? '#00f0ff' : '#8888aa',
         points: isWhite ? 10 : 5,
         isPocketed: false
@@ -237,7 +252,7 @@ class CyberCarromGame {
         vx: 0,
         vy: 0,
         radius: this.COIN_RADIUS,
-        color: isWhite ? '#ffffff' : '#333344',
+        color: isWhite ? '#ffffff' : '#2a2d48',
         border: isWhite ? '#00f0ff' : '#8888aa',
         points: isWhite ? 10 : 5,
         isPocketed: false
@@ -280,7 +295,6 @@ class CyberCarromGame {
     setTimeout(() => {
       if (this.isMoving || this.currentTurn !== 1) return;
 
-      // Find nearest active coin to pocket
       const activeCoins = this.coins.filter(c => !c.isPocketed);
       if (activeCoins.length === 0) return;
 
@@ -337,10 +351,10 @@ class CyberCarromGame {
       const minY = this.BOARD_PAD + b.radius;
       const maxY = this.V_HEIGHT - this.BOARD_PAD - b.radius;
 
-      if (b.x < minX) { b.x = minX; b.vx = -b.vx * 0.85; }
-      if (b.x > maxX) { b.x = maxX; b.vx = -b.vx * 0.85; }
-      if (b.y < minY) { b.y = minY; b.vy = -b.vy * 0.85; }
-      if (b.y > maxY) { b.y = maxY; b.vy = -b.vy * 0.85; }
+      if (b.x < minX) { b.x = minX; b.vx = -b.vx * 0.85; window.soundFX && window.soundFX.carromClack(); }
+      if (b.x > maxX) { b.x = maxX; b.vx = -b.vx * 0.85; window.soundFX && window.soundFX.carromClack(); }
+      if (b.y < minY) { b.y = minY; b.vy = -b.vy * 0.85; window.soundFX && window.soundFX.carromClack(); }
+      if (b.y > maxY) { b.y = maxY; b.vy = -b.vy * 0.85; window.soundFX && window.soundFX.carromClack(); }
 
       // Pocket check
       this.pockets.forEach(p => {
@@ -350,9 +364,8 @@ class CyberCarromGame {
           b.vx = 0;
           b.vy = 0;
           if (b === this.striker) {
-            // Foul!
             this.players[this.currentTurn].score = Math.max(0, this.players[this.currentTurn].score - 5);
-            window.soundFX && window.soundFX.snakeBite();
+            window.soundFX && window.soundFX.carromFoul();
           } else {
             this.players[this.currentTurn].score += b.points;
             window.soundFX && window.soundFX.carromPocket();
@@ -378,14 +391,12 @@ class CyberCarromGame {
           const nx = dx / dist;
           const ny = dy / dist;
 
-          // Separate overlap
           const overlap = minDist - dist;
           b1.x -= nx * overlap * 0.5;
           b1.y -= ny * overlap * 0.5;
           b2.x += nx * overlap * 0.5;
           b2.y += ny * overlap * 0.5;
 
-          // Momentum exchange
           const kx = b1.vx - b2.vx;
           const ky = b1.vy - b2.vy;
           const p = 2 * (nx * kx + ny * ky) / 2;
@@ -394,6 +405,8 @@ class CyberCarromGame {
           b1.vy -= p * ny * 0.95;
           b2.vx += p * nx * 0.95;
           b2.vy += p * ny * 0.95;
+
+          window.soundFX && window.soundFX.carromClack();
         }
       }
     }
@@ -416,7 +429,7 @@ class CyberCarromGame {
     ctx.clearRect(0, 0, this.V_WIDTH, this.V_HEIGHT);
 
     // Board Surface
-    ctx.fillStyle = '#101428';
+    ctx.fillStyle = '#0e122b';
     ctx.fillRect(0, 0, this.V_WIDTH, this.V_HEIGHT);
 
     // Board Border
@@ -456,7 +469,7 @@ class CyberCarromGame {
     // Baseline guidelines
     ctx.strokeStyle = '#44558855';
     ctx.lineWidth = 2;
-    ctx.strokeRect(150, 480, 300, 20); // bottom baseline
+    ctx.strokeRect(150, 480, 300, 20);
 
     // Draw Coins
     this.coins.forEach(c => {
@@ -529,7 +542,7 @@ class CyberCarromGame {
     });
 
     const turnPill = document.getElementById('carrom-turn-pill');
-    if (turnPill) {
+    if (turnPill && this.players[this.currentTurn]) {
       const activeP = this.players[this.currentTurn];
       turnPill.textContent = `${activeP.name.toUpperCase()}'S SHOT`;
       turnPill.style.borderColor = activeP.color;

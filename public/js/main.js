@@ -1,5 +1,6 @@
 // ==========================================
 // MAIN CONTROLLER & PORTAL ROUTER
+// Manages Modes, Lobby & Arena Switching
 // ==========================================
 class GamingUniverseApp {
   constructor() {
@@ -24,11 +25,18 @@ class GamingUniverseApp {
       });
     }
 
-    // Auth Open Buttons
-    const openAuthBtn = document.getElementById('btn-open-auth');
-    if (openAuthBtn) {
-      openAuthBtn.addEventListener('click', () => {
-        window.authController.openModal();
+    // Auth Open Buttons (Distinct Login and Register buttons)
+    const btnOpenLogin = document.getElementById('btn-open-login');
+    const btnOpenRegister = document.getElementById('btn-open-register');
+
+    if (btnOpenLogin) {
+      btnOpenLogin.addEventListener('click', () => {
+        window.authController.openModal('login');
+      });
+    }
+    if (btnOpenRegister) {
+      btnOpenRegister.addEventListener('click', () => {
+        window.authController.openModal('register');
       });
     }
 
@@ -42,23 +50,10 @@ class GamingUniverseApp {
     // Auth Tabs (Login vs Register)
     const tabLogin = document.getElementById('tab-btn-login');
     const tabRegister = document.getElementById('tab-btn-register');
-    const panelLogin = document.getElementById('panel-login');
-    const panelRegister = document.getElementById('panel-register');
 
     if (tabLogin && tabRegister) {
-      tabLogin.addEventListener('click', () => {
-        tabLogin.classList.add('active');
-        tabRegister.classList.remove('active');
-        panelLogin.classList.remove('hidden');
-        panelRegister.classList.add('hidden');
-      });
-
-      tabRegister.addEventListener('click', () => {
-        tabRegister.classList.add('active');
-        tabLogin.classList.remove('active');
-        panelRegister.classList.remove('hidden');
-        panelLogin.classList.add('hidden');
-      });
+      tabLogin.addEventListener('click', () => window.authController.switchTab('login'));
+      tabRegister.addEventListener('click', () => window.authController.switchTab('register'));
     }
 
     // Game Portal Cards Launch
@@ -83,8 +78,8 @@ class GamingUniverseApp {
     const roomInput = document.getElementById('manual-room-input');
     if (joinBtn && roomInput) {
       joinBtn.addEventListener('click', () => {
-        const code = roomInput.value.trim();
-        if (!code) return alert('Please enter a room code');
+        const code = roomInput.value.trim().toUpperCase();
+        if (!code) return alert('Please enter a valid 6-digit room code');
         window.multiplayerManager.joinRoom(code);
       });
     }
@@ -108,27 +103,46 @@ class GamingUniverseApp {
     if (!modal) return;
 
     modal.classList.remove('hidden');
-    document.getElementById('mode-game-title').textContent = gameKey.toUpperCase();
+    document.getElementById('mode-game-title').textContent = `${gameKey.toUpperCase()} - SELECT BATTLE PROTOCOL`;
 
     const optionsContainer = document.getElementById('mode-options-container');
     optionsContainer.innerHTML = '';
 
     const modes = [
-      { id: 'ai', title: '🤖 Solo vs AI Computer', desc: 'Practice your skills against our autonomous bot.', players: 1 },
-      { id: 'local_2p', title: '👥 2 Players (Local / Pass & Play)', desc: 'Two players on the same device or screen.', players: 2 }
+      { id: 'ai', title: '🤖 Solo vs AI Computer', desc: 'Sharpen your neural instincts against our autonomous bot.', players: 1, isOnline: false },
+      { id: 'local_2p', title: '👥 2 Players (Local / Pass & Play)', desc: 'Two warriors on the same screen or keyboard.', players: 2, isOnline: false }
     ];
 
     if (gameKey === 'carrom' || gameKey === 'ludo' || gameKey === 'snakes') {
-      modes.push({ id: 'local_3p', title: '👨‍👧‍👦 3 Players (Local)', desc: 'Three warriors on the battlefield.', players: 3 });
-      modes.push({ id: 'local_4p', title: '🔥 4 Players (Local Championship)', desc: 'Full four-player royal rumble.', players: 4 });
+      modes.push({ id: 'local_3p', title: '👨‍👧‍👦 3 Players (Local)', desc: 'Three commanders battling on the local matrix.', players: 3, isOnline: false });
+      modes.push({ id: 'local_4p', title: '🔥 4 Players (Local Championship)', desc: 'Four-way royal galactic championship.', players: 4, isOnline: false });
     }
 
+    // MULTIPLAYER MODES: 2P, 3P, 4P WITH LIVE SHARE LINK!
     modes.push({
-      id: 'online_room',
-      title: '🌐 Online Room (Share Link with Friends)',
-      desc: 'Create a private cyber room, get a shareable link, and invite friends across the web!',
+      id: 'online_2p',
+      title: '🌐 Online 2-Player Room (Share Link)',
+      desc: 'Create a private 2-player room. Share your link with a friend anywhere in the world!',
+      players: 2,
       isOnline: true
     });
+
+    if (gameKey === 'carrom' || gameKey === 'ludo' || gameKey === 'snakes') {
+      modes.push({
+        id: 'online_3p',
+        title: '🌐 Online 3-Player Room (Share Link)',
+        desc: 'Create a 3-player private room. Invite two friends via your custom room link!',
+        players: 3,
+        isOnline: true
+      });
+      modes.push({
+        id: 'online_4p',
+        title: '🌐 Online 4-Player Room (Share Link)',
+        desc: 'Create a full 4-player multiplayer arena. Invite up to three friends via share link!',
+        players: 4,
+        isOnline: true
+      });
+    }
 
     modes.forEach(m => {
       const btn = document.createElement('div');
@@ -136,7 +150,7 @@ class GamingUniverseApp {
       btn.innerHTML = `
         <div class="mode-header">
           <span class="mode-title">${m.title}</span>
-          ${m.isOnline ? '<span class="online-pill">LIVE MULTIPLAYER</span>' : ''}
+          ${m.isOnline ? '<span class="online-pill">LIVE MULTIPLAYER</span>' : '<span class="local-pill">OFFLINE / LOCAL</span>'}
         </div>
         <p class="mode-desc">${m.desc}</p>
       `;
@@ -144,10 +158,10 @@ class GamingUniverseApp {
       btn.addEventListener('click', () => {
         modal.classList.add('hidden');
 
-        // Show rules before playing!
+        // Show rules modal first before proceeding to game!
         window.rulesModal.show(gameKey, () => {
           if (m.isOnline) {
-            window.multiplayerManager.createRoom(gameKey, m.players || 2);
+            window.multiplayerManager.createRoom(gameKey, m.players);
           } else {
             this.launchGame(gameKey, m.id.startsWith('local') ? 'local' : 'ai', {
               playerCount: m.players
@@ -172,6 +186,11 @@ class GamingUniverseApp {
     document.getElementById('arena-view').classList.remove('hidden');
     document.getElementById('active-game-title').textContent = `${gameKey.toUpperCase()} ARENA`;
 
+    // Reset and clear chat for every new game!
+    if (window.multiplayerManager) {
+      window.multiplayerManager.clearChat();
+    }
+
     const arenaContainer = 'active-game-stage';
 
     if (gameKey === 'chess') {
@@ -181,19 +200,19 @@ class GamingUniverseApp {
       });
     } else if (gameKey === 'carrom') {
       this.activeGameInstance = new window.CyberCarromGame(arenaContainer, {
-        playerCount: options.playerCount || 2,
+        playerCount: (options.roomData && options.roomData.maxPlayers) || options.playerCount || 2,
         mode,
         roomData: options
       });
     } else if (gameKey === 'ludo') {
       this.activeGameInstance = new window.CyberLudoGame(arenaContainer, {
-        playerCount: options.playerCount || 4,
+        playerCount: (options.roomData && options.roomData.maxPlayers) || options.playerCount || 4,
         mode,
         roomData: options
       });
     } else if (gameKey === 'snakes') {
       this.activeGameInstance = new window.CyberSnakesGame(arenaContainer, {
-        playerCount: options.playerCount || 2,
+        playerCount: (options.roomData && options.roomData.maxPlayers) || options.playerCount || 2,
         mode,
         roomData: options
       });

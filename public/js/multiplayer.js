@@ -1,5 +1,6 @@
 // ==========================================
 // REAL-TIME MULTIPLAYER & SHARE LINK ENGINE
+// Supports 2P, 3P, 4P, Live Chat & Sync
 // ==========================================
 class MultiplayerManager {
   constructor() {
@@ -8,6 +9,7 @@ class MultiplayerManager {
     this.playerIndex = 0;
     this.isHost = false;
     this.actionListeners = [];
+    this.unreadChatCount = 0;
     this.initSocket();
     this.bindDOM();
   }
@@ -25,7 +27,8 @@ class MultiplayerManager {
         this.playerIndex = data.playerIndex;
         this.isHost = true;
         this.renderRoomModal();
-        this.showToast('Room created! Share link with your friends.');
+        this.showToast('Room created! Share the link or code with friends.');
+        this.clearChat();
       });
 
       this.socket.on('joined_successfully', (data) => {
@@ -34,6 +37,7 @@ class MultiplayerManager {
         this.isHost = false;
         this.renderRoomModal();
         this.showToast(`Joined room: ${data.roomCode}`);
+        this.clearChat();
       });
 
       this.socket.on('player_joined', (data) => {
@@ -43,14 +47,37 @@ class MultiplayerManager {
         window.soundFX && window.soundFX.click();
       });
 
+      this.socket.on('player_updated', (data) => {
+        this.currentRoom = data.room;
+        this.renderRoomModal();
+      });
+
       this.socket.on('player_left', (data) => {
         if (this.currentRoom) {
           this.currentRoom.players = data.remainingPlayers;
           this.renderRoomModal();
-          this.showToast('A player left the room.');
+          this.showToast('A player disconnected.');
         }
       });
 
+      // HOST LAUNCHES MATCH - STARTS FOR ALL PLAYERS SYNCHRONOUSLY
+      this.socket.on('match_started', (data) => {
+        this.currentRoom = data.room;
+        // Close the waiting room modal for all players
+        const modal = document.getElementById('multiplayer-room-modal');
+        if (modal) modal.classList.add('hidden');
+
+        // Clear chat for every new game!
+        this.clearChat();
+
+        this.showToast('🚀 Match launched by Host! Entering Arena...');
+        window.soundFX && window.soundFX.victory();
+
+        // Launch game for all clients
+        window.mainApp.launchGame(data.gameType, 'multiplayer', data.room);
+      });
+
+      // Relay game moves/rolls/shots
       this.socket.on('game_action_received', (data) => {
         this.actionListeners.forEach(listener => listener(data));
       });
@@ -59,12 +86,14 @@ class MultiplayerManager {
         alert(data.message || 'Could not join room');
       });
 
+      // In-game live chat broadcast received
       this.socket.on('new_chat_message', (msg) => {
         this.appendChatMessage(msg);
       });
 
       this.socket.on('game_restarted', () => {
         this.showToast('Match was restarted by Host.');
+        this.clearChat();
         if (window.activeGameInstance && typeof window.activeGameInstance.restartGame === 'function') {
           window.activeGameInstance.restartGame(false);
         }
@@ -90,17 +119,17 @@ class MultiplayerManager {
       });
     }
 
-    // Launch multiplayer game button in room modal
+    // Launch multiplayer game button in room modal (Host triggers for ALL players)
     const startMultiplayerBtn = document.getElementById('btn-room-start-game');
     if (startMultiplayerBtn) {
       startMultiplayerBtn.addEventListener('click', () => {
         if (!this.currentRoom) return;
         if (this.currentRoom.players.length < 2) {
-          alert('Wait for at least 1 more player to join via the link or room code!');
+          alert('Wait for at least 1 more player to join before starting!');
           return;
         }
-        document.getElementById('multiplayer-room-modal').classList.add('hidden');
-        window.mainApp.launchGame(this.currentRoom.gameType, 'multiplayer', this.currentRoom);
+        // Emit to socket server so ALL players start simultaneously!
+        this.socket.emit('start_match', { roomCode: this.currentRoom.code });
       });
     }
 
@@ -112,27 +141,68 @@ class MultiplayerManager {
       });
     }
 
-    // In-room chat send
-    const chatInput = document.getElementById('room-chat-input');
-    const chatSendBtn = document.getElementById('btn-send-room-chat');
-    if (chatSendBtn && chatInput) {
-      const sendMsg = () => {
-        const text = chatInput.value.trim();
-        if (!text || !this.currentRoom) return;
-        const user = window.authController.getUser();
-        this.socket.emit('send_chat', {
-          roomCode: this.currentRoom.code,
-          senderName: user.username,
-          avatar: user.avatar,
-          text
-        });
-        chatInput.value = '';
-      };
-      chatSendBtn.addEventListener('click', sendMsg);
-      chatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') sendMsg();
+    // Room modal chat
+    this.setupChatInput('room-chat-input', 'btn-send-room-chat');
+
+    // In-Arena live HUD chat
+    this.setupChatInput('arena-chat-input', 'btn-send-arena-chat');
+
+    // In-Arena chat drawer toggle
+    const toggleChatBtn = document.getElementById('btn-toggle-arena-chat');
+    const arenaChatDrawer = document.getElementById('arena-chat-drawer');
+    if (toggleChatBtn && arenaChatDrawer) {
+      toggleChatBtn.addEventListener('click', () => {
+        arenaChatDrawer.classList.toggle('collapsed');
+        this.unreadChatCount = 0;
+        this.updateChatBadge();
+        window.soundFX && window.soundFX.click();
       });
     }
+
+    // Room profile customization (edit name & avatar inside room)
+    const roomNameInput = document.getElementById('room-player-name-edit');
+    if (roomNameInput) {
+      roomNameInput.addEventListener('change', () => {
+        const newName = roomNameInput.value.trim();
+        if (newName) this.updateMyProfile(newName, null);
+      });
+    }
+  }
+
+  setupChatInput(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!input || !btn) return;
+
+    const sendMsg = () => {
+      const text = input.value.trim();
+      if (!text || !this.currentRoom) return;
+      const user = window.authController.getUser();
+      this.socket.emit('send_chat', {
+        roomCode: this.currentRoom.code,
+        senderName: user.username,
+        avatar: user.avatar,
+        text
+      });
+      input.value = '';
+    };
+
+    btn.addEventListener('click', sendMsg);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendMsg();
+    });
+  }
+
+  updateMyProfile(name, avatar) {
+    if (!this.currentRoom || !this.socket) return;
+    const user = window.authController.getUser();
+    const finalName = name || user.username;
+    const finalAvatar = avatar || user.avatar;
+    this.socket.emit('update_player_profile', {
+      roomCode: this.currentRoom.code,
+      name: finalName,
+      avatar: finalAvatar
+    });
   }
 
   createRoom(gameType, maxPlayers = 2) {
@@ -141,7 +211,7 @@ class MultiplayerManager {
       gameType,
       playerName: user.username,
       avatar: user.avatar,
-      maxPlayers
+      maxPlayers: parseInt(maxPlayers, 10)
     });
   }
 
@@ -171,6 +241,16 @@ class MultiplayerManager {
     this.actionListeners = [];
   }
 
+  clearChat() {
+    const roomChat = document.getElementById('room-chat-messages');
+    const arenaChat = document.getElementById('arena-chat-messages');
+    const cleanNotice = '<div class="chat-item notice">⚡ New battle started. Tactical channel cleared.</div>';
+    if (roomChat) roomChat.innerHTML = cleanNotice;
+    if (arenaChat) arenaChat.innerHTML = cleanNotice;
+    this.unreadChatCount = 0;
+    this.updateChatBadge();
+  }
+
   getShareableLink() {
     if (!this.currentRoom) return window.location.href;
     const base = window.location.origin + window.location.pathname;
@@ -184,8 +264,15 @@ class MultiplayerManager {
     modal.classList.remove('hidden');
 
     document.getElementById('room-display-code').textContent = this.currentRoom.code;
-    document.getElementById('room-game-title').textContent = this.currentRoom.gameType.toUpperCase();
+    document.getElementById('room-game-title').textContent = `${this.currentRoom.gameType.toUpperCase()} (${this.currentRoom.maxPlayers}P)`;
     document.getElementById('room-player-count').textContent = `${this.currentRoom.players.length} / ${this.currentRoom.maxPlayers}`;
+
+    // Fill the editable name box with current user's name
+    const editNameInput = document.getElementById('room-player-name-edit');
+    if (editNameInput) {
+      const myPlayer = this.currentRoom.players.find(p => p.id === this.socket.id);
+      if (myPlayer) editNameInput.value = myPlayer.name;
+    }
 
     // Render player slots
     const slotsContainer = document.getElementById('room-player-slots');
@@ -202,14 +289,16 @@ class MultiplayerManager {
           <div class="slot-avatar" style="border-color:${meta.color}">${meta.icon}</div>
           <div class="slot-info">
             <span class="slot-name">${player.name} ${player.isHost ? '👑' : ''}</span>
-            <span class="slot-status">READY ${player.id === this.socket.id ? '(YOU)' : ''}</span>
+            <span class="slot-status" style="color:${player.id === this.socket.id ? '#00f0ff' : '#00ff66'}">
+              ${player.id === this.socket.id ? 'READY (YOU)' : 'READY'}
+            </span>
           </div>
         `;
       } else {
         slotEl.innerHTML = `
           <div class="slot-avatar empty">⏳</div>
           <div class="slot-info">
-            <span class="slot-name">Waiting for Player...</span>
+            <span class="slot-name">Waiting for Player ${i + 1}...</span>
             <span class="slot-status">Send link to invite</span>
           </div>
         `;
@@ -221,7 +310,8 @@ class MultiplayerManager {
     if (startBtn) {
       if (this.isHost) {
         startBtn.style.display = 'inline-flex';
-        startBtn.textContent = '🚀 START MATCH';
+        startBtn.textContent = '🚀 START MATCH FOR ALL';
+        startBtn.disabled = this.currentRoom.players.length < 2;
       } else {
         startBtn.style.display = 'inline-flex';
         startBtn.textContent = '⏳ WAITING FOR HOST TO START';
@@ -231,20 +321,46 @@ class MultiplayerManager {
   }
 
   appendChatMessage(msg) {
-    const container = document.getElementById('room-chat-messages');
-    if (!container) return;
+    const containers = [
+      document.getElementById('room-chat-messages'),
+      document.getElementById('arena-chat-messages')
+    ];
 
     const meta = window.authController.getAvatarMeta(msg.avatar);
-    const msgEl = document.createElement('div');
-    msgEl.className = 'chat-item';
-    msgEl.innerHTML = `
-      <span class="chat-time">${msg.timestamp}</span>
-      <span class="chat-sender" style="color: ${meta.color}">${meta.icon} ${msg.sender}:</span>
-      <span class="chat-text">${this.escapeHTML(msg.text)}</span>
-    `;
-    container.appendChild(msgEl);
-    container.scrollTop = container.scrollHeight;
-    window.soundFX && window.soundFX.click();
+
+    containers.forEach(container => {
+      if (!container) return;
+      const msgEl = document.createElement('div');
+      msgEl.className = 'chat-item';
+      msgEl.innerHTML = `
+        <span class="chat-time">${msg.timestamp}</span>
+        <span class="chat-sender" style="color: ${meta.color}">${meta.icon} ${msg.sender}:</span>
+        <span class="chat-text">${this.escapeHTML(msg.text)}</span>
+      `;
+      container.appendChild(msgEl);
+      container.scrollTop = container.scrollHeight;
+    });
+
+    // Play incoming message chime!
+    window.soundFX && window.soundFX.chatMessage();
+
+    // Check if arena chat drawer is collapsed
+    const arenaChatDrawer = document.getElementById('arena-chat-drawer');
+    if (arenaChatDrawer && arenaChatDrawer.classList.contains('collapsed')) {
+      this.unreadChatCount++;
+      this.updateChatBadge();
+    }
+  }
+
+  updateChatBadge() {
+    const badge = document.getElementById('arena-chat-unread-badge');
+    if (!badge) return;
+    if (this.unreadChatCount > 0) {
+      badge.textContent = this.unreadChatCount;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
   }
 
   escapeHTML(str) {
