@@ -1,6 +1,7 @@
 // ==========================================
 // GAME 2: CYBER CARROM BOARD (PHYSICS ENGINE)
 // Supports vs Computer & 2P / 3P / 4P (Local & Online)
+// Enhanced Striker Controls, Aim Guide & Board Orientation
 // ==========================================
 class CyberCarromGame {
   constructor(containerId, options = {}) {
@@ -18,6 +19,12 @@ class CyberCarromGame {
     this.isAI = !this.isOnline && this.playerCount === 1;
     this.totalSeats = this.isAI ? 2 : this.playerCount;
 
+    // Board rotation angle for ergonomic player view (Player 2 plays facing from their side)
+    this.rotationAngle = 0;
+    if (this.isOnline && window.multiplayerManager.playerIndex === 1 && this.playerCount === 2) {
+      this.rotationAngle = Math.PI; // 180 deg flip for Player 2
+    }
+
     this.canvas = null;
     this.ctx = null;
     this.animId = null;
@@ -25,13 +32,12 @@ class CyberCarromGame {
     // Board specs (virtual units 600x600)
     this.V_WIDTH = 600;
     this.V_HEIGHT = 600;
-    this.scale = 1;
 
     this.BOARD_PAD = 35;
     this.POCKET_RADIUS = 28;
     this.COIN_RADIUS = 13;
     this.STRIKER_RADIUS = 19;
-    this.FRICTION = 0.982;
+    this.FRICTION = 0.980;
 
     this.pockets = [
       { x: this.BOARD_PAD + 15, y: this.BOARD_PAD + 15 },
@@ -45,12 +51,13 @@ class CyberCarromGame {
     this.players = [];
     this.currentTurn = 0;
 
-    // Shooting state
+    // Striking & Aiming state
     this.isAiming = false;
-    this.dragStart = { x: 0, y: 0 };
-    this.dragCurrent = { x: 0, y: 0 };
+    this.aimAngle = -Math.PI / 2; // Default aim pointing UP towards center
+    this.aimPower = 14;           // 5 to 22
     this.isMoving = false;
     this.strikerBaseX = 300;
+    this.motionTimer = null;
 
     this.init();
   }
@@ -110,30 +117,59 @@ class CyberCarromGame {
 
         <div class="carrom-board-wrapper board-3d-effect">
           <canvas id="carrom-canvas" width="600" height="600"></canvas>
-          <div class="striker-slider-container">
-            <label>Baseline Position:</label>
-            <input type="range" id="striker-baseline-slider" min="150" max="450" value="300" step="1">
-          </div>
-        </div>
+          
+          <!-- Intuitive Striker Control Deck -->
+          <div class="carrom-controls-panel">
+            <div class="control-row">
+              <label>📍 STRIKER POSITION:</label>
+              <input type="range" id="striker-baseline-slider" min="150" max="450" value="300" step="1">
+            </div>
 
-        <div class="game-actions-bar">
-          <button class="cyber-btn sm" id="btn-carrom-reset">🔄 Reset Board</button>
-          <button class="cyber-btn sm secondary" id="btn-carrom-rules">📜 View Rules</button>
+            <div class="control-row">
+              <label>⚡ SHOT POWER: <span id="power-display">14</span></label>
+              <input type="range" id="shot-power-slider" min="6" max="22" value="14" step="1">
+            </div>
+
+            <div class="carrom-action-btns">
+              <button class="cyber-btn primary-glow" id="btn-fire-striker">🚀 HIT STRIKER</button>
+              <button class="cyber-btn sm secondary" id="btn-carrom-flip">🔄 Rotate View</button>
+              <button class="cyber-btn sm secondary" id="btn-carrom-reset">🔄 Reset</button>
+              <button class="cyber-btn sm secondary" id="btn-carrom-rules">📜 Rules</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
 
-    document.getElementById('btn-carrom-reset').addEventListener('click', () => this.resetBoard());
-    document.getElementById('btn-carrom-rules').addEventListener('click', () => {
-      window.rulesModal.show('carrom');
-    });
-
-    const slider = document.getElementById('striker-baseline-slider');
-    slider.addEventListener('input', (e) => {
+    // Sliders
+    const posSlider = document.getElementById('striker-baseline-slider');
+    posSlider.addEventListener('input', (e) => {
       if (!this.isMoving) {
         this.strikerBaseX = parseFloat(e.target.value);
         this.positionStriker();
       }
+    });
+
+    const powerSlider = document.getElementById('shot-power-slider');
+    const powerText = document.getElementById('power-display');
+    powerSlider.addEventListener('input', (e) => {
+      this.aimPower = parseFloat(e.target.value);
+      if (powerText) powerText.textContent = this.aimPower;
+    });
+
+    // Buttons
+    document.getElementById('btn-fire-striker').addEventListener('click', () => {
+      this.fireCurrentAim();
+    });
+
+    document.getElementById('btn-carrom-flip').addEventListener('click', () => {
+      this.rotationAngle = (this.rotationAngle + Math.PI / 2) % (Math.PI * 2);
+      window.soundFX && window.soundFX.click();
+    });
+
+    document.getElementById('btn-carrom-reset').addEventListener('click', () => this.resetBoard());
+    document.getElementById('btn-carrom-rules').addEventListener('click', () => {
+      window.rulesModal.show('carrom');
     });
 
     this.updateScoreboard();
@@ -147,13 +183,25 @@ class CyberCarromGame {
       const b = this.canvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      return {
-        x: (clientX - b.left) * (this.canvas.width / b.width),
-        y: (clientY - b.top) * (this.canvas.height / b.height)
-      };
+      const rawX = (clientX - b.left) * (this.canvas.width / b.width);
+      const rawY = (clientY - b.top) * (this.canvas.height / b.height);
+
+      // Invert rotation if board view is rotated
+      if (this.rotationAngle !== 0) {
+        const cos = Math.cos(-this.rotationAngle);
+        const sin = Math.sin(-this.rotationAngle);
+        const dx = rawX - 300;
+        const dy = rawY - 300;
+        return {
+          x: 300 + (dx * cos - dy * sin),
+          y: 300 + (dx * sin + dy * cos)
+        };
+      }
+
+      return { x: rawX, y: rawY };
     };
 
-    const startAim = (pos) => {
+    const handlePointerDown = (pos) => {
       if (this.isMoving) return;
       if (this.isAI && this.currentTurn === 1) return;
       if (this.isOnline && this.currentTurn !== window.multiplayerManager.playerIndex) {
@@ -161,43 +209,53 @@ class CyberCarromGame {
         return;
       }
 
-      const dist = Math.hypot(pos.x - this.striker.x, pos.y - this.striker.y);
-      if (dist < this.STRIKER_RADIUS * 2.2) {
-        this.isAiming = true;
-        this.dragStart = pos;
-        this.dragCurrent = pos;
-      }
+      // Point aim towards clicked point
+      this.isAiming = true;
+      this.updateAimAngle(pos);
     };
 
-    const moveAim = (pos) => {
+    const handlePointerMove = (pos) => {
       if (!this.isAiming) return;
-      this.dragCurrent = pos;
+      this.updateAimAngle(pos);
     };
 
-    const releaseAim = () => {
-      if (!this.isAiming) return;
-      this.isAiming = false;
-
-      const dx = this.dragStart.x - this.dragCurrent.x;
-      const dy = this.dragStart.y - this.dragCurrent.y;
-      const power = Math.min(Math.hypot(dx, dy) * 0.18, 22);
-
-      if (power > 2) {
-        const angle = Math.atan2(dy, dx);
-        const vx = Math.cos(angle) * power;
-        const vy = Math.sin(angle) * power;
-
-        this.applyStrike({ x: this.striker.x, y: this.striker.y }, vx, vy, true);
-      }
+    const handlePointerUp = () => {
+      // Don't auto-fire on accidental click; user can drag to aim and hit button or double click
     };
 
-    this.canvas.addEventListener('mousedown', (e) => startAim(getPos(e)));
-    window.addEventListener('mousemove', (e) => moveAim(getPos(e)));
-    window.addEventListener('mouseup', releaseAim);
+    this.canvas.addEventListener('mousedown', (e) => handlePointerDown(getPos(e)));
+    this.canvas.addEventListener('mousemove', (e) => handlePointerMove(getPos(e)));
+    window.addEventListener('mouseup', handlePointerUp);
 
-    this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startAim(getPos(e)); });
-    window.addEventListener('touchmove', (e) => moveAim(getPos(e)));
-    window.addEventListener('touchend', releaseAim);
+    this.canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      handlePointerDown(getPos(e));
+    });
+    this.canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      handlePointerMove(getPos(e));
+    });
+  }
+
+  updateAimAngle(pos) {
+    if (!this.striker) return;
+    const dx = pos.x - this.striker.x;
+    const dy = pos.y - this.striker.y;
+    this.aimAngle = Math.atan2(dy, dx);
+  }
+
+  fireCurrentAim() {
+    if (this.isMoving || !this.striker) return;
+    if (this.isAI && this.currentTurn === 1) return;
+    if (this.isOnline && this.currentTurn !== window.multiplayerManager.playerIndex) {
+      window.soundFX && window.soundFX.carromFoul();
+      return;
+    }
+
+    const vx = Math.cos(this.aimAngle) * this.aimPower;
+    const vy = Math.sin(this.aimAngle) * this.aimPower;
+
+    this.applyStrike({ x: this.striker.x, y: this.striker.y }, vx, vy, true);
   }
 
   resetBoard() {
@@ -261,7 +319,7 @@ class CyberCarromGame {
 
     this.positionStriker();
     this.isMoving = false;
-    this.isAiming = false;
+    this.isAiming = true;
     this.updateScoreboard();
   }
 
@@ -286,8 +344,29 @@ class CyberCarromGame {
 
     window.soundFX && window.soundFX.carromStrike();
 
+    // Watchdog: If anything gets stuck in micro-movement, force stop in 3.8s!
+    clearTimeout(this.motionTimer);
+    this.motionTimer = setTimeout(() => {
+      if (this.isMoving) {
+        this.forceStopAll();
+      }
+    }, 3800);
+
     if (shouldBroadcast && this.isOnline) {
       window.multiplayerManager.sendAction('carrom_strike', { strikerPos: pos, vx, vy });
+    }
+  }
+
+  forceStopAll() {
+    if (this.striker) { this.striker.vx = 0; this.striker.vy = 0; }
+    this.coins.forEach(c => { c.vx = 0; c.vy = 0; });
+    this.isMoving = false;
+    this.positionStriker();
+    this.currentTurn = (this.currentTurn + 1) % this.totalSeats;
+    this.updateScoreboard();
+
+    if (this.isAI && this.currentTurn === 1) {
+      this.triggerAIMove();
     }
   }
 
@@ -299,23 +378,23 @@ class CyberCarromGame {
       if (activeCoins.length === 0) return;
 
       const target = activeCoins[Math.floor(Math.random() * activeCoins.length)];
-      this.strikerBaseX = Math.max(160, Math.min(440, target.x + (Math.random() - 0.5) * 60));
+      this.strikerBaseX = Math.max(160, Math.min(440, target.x + (Math.random() - 0.5) * 50));
       this.positionStriker();
 
       setTimeout(() => {
         const dx = target.x - this.striker.x;
         const dy = target.y - this.striker.y;
-        const angle = Math.atan2(dy, dx);
-        const power = 14 + Math.random() * 5;
+        this.aimAngle = Math.atan2(dy, dx);
+        const power = 13 + Math.random() * 5;
 
         this.applyStrike(
           { x: this.striker.x, y: this.striker.y },
-          Math.cos(angle) * power,
-          Math.sin(angle) * power,
+          Math.cos(this.aimAngle) * power,
+          Math.sin(this.aimAngle) * power,
           false
         );
-      }, 400);
-    }, 700);
+      }, 500);
+    }, 800);
   }
 
   startLoop() {
@@ -338,7 +417,8 @@ class CyberCarromGame {
       b.vx *= this.FRICTION;
       b.vy *= this.FRICTION;
 
-      if (Math.hypot(b.vx, b.vy) < 0.08) {
+      // Clean cutoff to prevent infinite micro-jitter
+      if (Math.hypot(b.vx, b.vy) < 0.22) {
         b.vx = 0;
         b.vy = 0;
       } else {
@@ -411,8 +491,9 @@ class CyberCarromGame {
       }
     }
 
-    // Turn transition when stopped
+    // Turn transition when all bodies stop moving
     if (this.isMoving && !anyMoving) {
+      clearTimeout(this.motionTimer);
       this.isMoving = false;
       this.positionStriker();
       this.currentTurn = (this.currentTurn + 1) % this.totalSeats;
@@ -427,6 +508,14 @@ class CyberCarromGame {
   draw() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.V_WIDTH, this.V_HEIGHT);
+
+    ctx.save();
+    // Apply user perspective rotation
+    if (this.rotationAngle !== 0) {
+      ctx.translate(300, 300);
+      ctx.rotate(this.rotationAngle);
+      ctx.translate(-300, -300);
+    }
 
     // Board Surface
     ctx.fillStyle = '#0e122b';
@@ -466,10 +555,13 @@ class CyberCarromGame {
     ctx.fill();
     ctx.stroke();
 
-    // Baseline guidelines
+    // Baseline guidelines (all 4 sides for realistic tournament board)
     ctx.strokeStyle = '#44558855';
     ctx.lineWidth = 2;
-    ctx.strokeRect(150, 480, 300, 20);
+    ctx.strokeRect(150, 480, 300, 20); // Bottom baseline
+    ctx.strokeRect(150, 100, 300, 20); // Top baseline
+    ctx.strokeRect(100, 150, 20, 300); // Left baseline
+    ctx.strokeRect(480, 150, 20, 300); // Right baseline
 
     // Draw Coins
     this.coins.forEach(c => {
@@ -494,33 +586,40 @@ class CyberCarromGame {
       ctx.arc(this.striker.x, this.striker.y, this.striker.radius, 0, Math.PI * 2);
       ctx.fillStyle = this.striker.color;
       ctx.shadowColor = '#ffbd00';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
       ctx.fill();
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#ffffff';
       ctx.stroke();
       ctx.restore();
+
+      // Draw Laser Aim Trajectory Guide
+      if (!this.isMoving) {
+        const len = this.aimPower * 12;
+        const targetX = this.striker.x + Math.cos(this.aimAngle) * len;
+        const targetY = this.striker.y + Math.sin(this.aimAngle) * len;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([8, 4]);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 12;
+        ctx.moveTo(this.striker.x, this.striker.y);
+        ctx.lineTo(targetX, targetY);
+        ctx.stroke();
+
+        // Arrow head
+        ctx.beginPath();
+        ctx.arc(targetX, targetY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffbd00';
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
-    // Aim Laser Line
-    if (this.isAiming) {
-      const dx = this.dragStart.x - this.dragCurrent.x;
-      const dy = this.dragStart.y - this.dragCurrent.y;
-      const angle = Math.atan2(dy, dx);
-      const len = Math.min(Math.hypot(dx, dy) * 1.5, 180);
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.setLineDash([6, 4]);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#00f0ff';
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 10;
-      ctx.moveTo(this.striker.x, this.striker.y);
-      ctx.lineTo(this.striker.x + Math.cos(angle) * len, this.striker.y + Math.sin(angle) * len);
-      ctx.stroke();
-      ctx.restore();
-    }
+    ctx.restore();
   }
 
   updateScoreboard() {
@@ -552,6 +651,7 @@ class CyberCarromGame {
 
   destroy() {
     if (this.animId) cancelAnimationFrame(this.animId);
+    clearTimeout(this.motionTimer);
   }
 }
 

@@ -1,6 +1,6 @@
 // ==========================================
 // REAL-TIME MULTIPLAYER & SHARE LINK ENGINE
-// Supports 2P, 3P, 4P, Live Chat & Sync
+// Supports 2P, 3P, 4P, Live Chat, Forfeits & Sync
 // ==========================================
 class MultiplayerManager {
   constructor() {
@@ -56,25 +56,41 @@ class MultiplayerManager {
         if (this.currentRoom) {
           this.currentRoom.players = data.remainingPlayers;
           this.renderRoomModal();
-          this.showToast('A player disconnected.');
+          this.showToast('A player left the waiting room.');
         }
       });
 
-      // HOST LAUNCHES MATCH - STARTS FOR ALL PLAYERS SYNCHRONOUSLY
+      // HOST LAUNCHES MATCH - SYNCHRONIZED FOR ALL PLAYERS
       this.socket.on('match_started', (data) => {
         this.currentRoom = data.room;
-        // Close the waiting room modal for all players
         const modal = document.getElementById('multiplayer-room-modal');
         if (modal) modal.classList.add('hidden');
 
-        // Clear chat for every new game!
         this.clearChat();
-
         this.showToast('🚀 Match launched by Host! Entering Arena...');
         window.soundFX && window.soundFX.victory();
 
-        // Launch game for all clients
         window.mainApp.launchGame(data.gameType, 'multiplayer', data.room);
+      });
+
+      // PLAYER FORFEIT / RESIGN NOTIFICATION
+      this.socket.on('match_forfeited', (data) => {
+        const myUser = window.authController.getUser();
+        const amIForfeiter = myUser && data.forfeitingPlayerName === myUser.username;
+
+        if (amIForfeiter) {
+          alert(`🏳️ You have resigned from the match.`);
+        } else {
+          window.soundFX && window.soundFX.victory();
+          alert(`🏆 VICTORY BY FORFEIT!\n\n${data.forfeitingPlayerName} has exited the match.\n${data.winnerName} WINS THE BATTLE!`);
+          if (this.currentRoom) {
+            window.authController.recordOutcome(this.currentRoom.gameType, true, 250);
+          }
+        }
+
+        setTimeout(() => {
+          window.mainApp.returnToLobby();
+        }, 1000);
       });
 
       // Relay game moves/rolls/shots
@@ -86,7 +102,7 @@ class MultiplayerManager {
         alert(data.message || 'Could not join room');
       });
 
-      // In-game live chat broadcast received
+      // Live chat broadcast received
       this.socket.on('new_chat_message', (msg) => {
         this.appendChatMessage(msg);
       });
@@ -128,7 +144,6 @@ class MultiplayerManager {
           alert('Wait for at least 1 more player to join before starting!');
           return;
         }
-        // Emit to socket server so ALL players start simultaneously!
         this.socket.emit('start_match', { roomCode: this.currentRoom.code });
       });
     }
@@ -159,7 +174,7 @@ class MultiplayerManager {
       });
     }
 
-    // Room profile customization (edit name & avatar inside room)
+    // Guest Name change inside room
     const roomNameInput = document.getElementById('room-player-name-edit');
     if (roomNameInput) {
       roomNameInput.addEventListener('change', () => {
@@ -177,7 +192,7 @@ class MultiplayerManager {
     const sendMsg = () => {
       const text = input.value.trim();
       if (!text || !this.currentRoom) return;
-      const user = window.authController.getUser();
+      const user = window.authController.getUser() || { username: 'Player', avatar: 'cyber_samurai' };
       this.socket.emit('send_chat', {
         roomCode: this.currentRoom.code,
         senderName: user.username,
@@ -195,7 +210,7 @@ class MultiplayerManager {
 
   updateMyProfile(name, avatar) {
     if (!this.currentRoom || !this.socket) return;
-    const user = window.authController.getUser();
+    const user = window.authController.getUser() || { username: 'Player', avatar: 'cyber_samurai' };
     const finalName = name || user.username;
     const finalAvatar = avatar || user.avatar;
     this.socket.emit('update_player_profile', {
@@ -206,7 +221,7 @@ class MultiplayerManager {
   }
 
   createRoom(gameType, maxPlayers = 2) {
-    const user = window.authController.getUser();
+    const user = window.authController.getUser() || { username: 'Player 1', avatar: 'cyber_samurai' };
     this.socket.emit('create_room', {
       gameType,
       playerName: user.username,
@@ -217,6 +232,12 @@ class MultiplayerManager {
 
   joinRoom(roomCode) {
     const user = window.authController.getUser();
+    if (!user) {
+      // Must login or pick guest name first!
+      window.authController.openModal('login', roomCode);
+      return;
+    }
+
     this.socket.emit('join_room', {
       roomCode,
       playerName: user.username,
@@ -244,7 +265,7 @@ class MultiplayerManager {
   clearChat() {
     const roomChat = document.getElementById('room-chat-messages');
     const arenaChat = document.getElementById('arena-chat-messages');
-    const cleanNotice = '<div class="chat-item notice">⚡ New battle started. Tactical channel cleared.</div>';
+    const cleanNotice = '<div class="chat-item notice">⚡ Tactical comms online. Channel cleared for battle.</div>';
     if (roomChat) roomChat.innerHTML = cleanNotice;
     if (arenaChat) arenaChat.innerHTML = cleanNotice;
     this.unreadChatCount = 0;
@@ -267,11 +288,23 @@ class MultiplayerManager {
     document.getElementById('room-game-title').textContent = `${this.currentRoom.gameType.toUpperCase()} (${this.currentRoom.maxPlayers}P)`;
     document.getElementById('room-player-count').textContent = `${this.currentRoom.players.length} / ${this.currentRoom.maxPlayers}`;
 
-    // Fill the editable name box with current user's name
-    const editNameInput = document.getElementById('room-player-name-edit');
-    if (editNameInput) {
-      const myPlayer = this.currentRoom.players.find(p => p.id === this.socket.id);
-      if (myPlayer) editNameInput.value = myPlayer.name;
+    // Account link check: if logged in with real account, show verified badge, no need to re-type!
+    const user = window.authController.getUser();
+    const isGuest = !user || user.isGuest;
+    const accountNotice = document.getElementById('room-account-status');
+    const guestEditBar = document.getElementById('room-guest-edit-bar');
+
+    if (accountNotice && guestEditBar) {
+      if (!isGuest) {
+        accountNotice.classList.remove('hidden');
+        document.getElementById('room-verified-username').textContent = user.username;
+        guestEditBar.classList.add('hidden');
+      } else {
+        accountNotice.classList.add('hidden');
+        guestEditBar.classList.remove('hidden');
+        const editNameInput = document.getElementById('room-player-name-edit');
+        if (editNameInput && user) editNameInput.value = user.username;
+      }
     }
 
     // Render player slots
@@ -341,10 +374,8 @@ class MultiplayerManager {
       container.scrollTop = container.scrollHeight;
     });
 
-    // Play incoming message chime!
     window.soundFX && window.soundFX.chatMessage();
 
-    // Check if arena chat drawer is collapsed
     const arenaChatDrawer = document.getElementById('arena-chat-drawer');
     if (arenaChatDrawer && arenaChatDrawer.classList.contains('collapsed')) {
       this.unreadChatCount++;

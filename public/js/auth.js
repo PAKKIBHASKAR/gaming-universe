@@ -15,6 +15,7 @@ const AVATARS = [
 
 let currentUser = null;
 let authToken = localStorage.getItem('gaming_token') || null;
+let pendingRoomJoin = null;
 
 function getAvatarMeta(avatarId) {
   return AVATARS.find(a => a.id === avatarId) || AVATARS[0];
@@ -43,7 +44,10 @@ function initAuth() {
   if (registerForm) registerForm.addEventListener('submit', handleRegister);
 
   const guestBtn = document.getElementById('guest-login-btn');
-  if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
+  if (guestBtn) guestBtn.addEventListener('click', handleGuestPrompt);
+
+  const guestSubmitBtn = document.getElementById('btn-submit-guest');
+  if (guestSubmitBtn) guestSubmitBtn.addEventListener('click', handleGuestSubmit);
 
   const logoutBtn = document.getElementById('btn-logout');
   if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
@@ -74,7 +78,6 @@ function renderAvatarSelectors() {
         el.classList.add('selected');
         window.soundFX && window.soundFX.click();
 
-        // If in multiplayer room, live update room profile
         if (container.id === 'room-avatar-picker' && window.multiplayerManager) {
           window.multiplayerManager.updateMyProfile(null, av.id);
         }
@@ -96,7 +99,10 @@ function switchAuthTab(targetTab) {
   const tabRegister = document.getElementById('tab-btn-register');
   const panelLogin = document.getElementById('panel-login');
   const panelRegister = document.getElementById('panel-register');
+  const panelGuest = document.getElementById('panel-guest');
   const modalTitle = document.getElementById('auth-modal-title');
+
+  if (panelGuest) panelGuest.classList.add('hidden');
 
   if (targetTab === 'register') {
     tabRegister.classList.add('active');
@@ -105,6 +111,13 @@ function switchAuthTab(targetTab) {
     panelLogin.classList.add('hidden');
     if (modalTitle) modalTitle.textContent = 'CREATE CYBER ACCOUNT';
     document.getElementById('reg-username').focus();
+  } else if (targetTab === 'guest') {
+    tabRegister.classList.remove('active');
+    tabLogin.classList.remove('active');
+    panelRegister.classList.add('hidden');
+    panelLogin.classList.add('hidden');
+    if (panelGuest) panelGuest.classList.remove('hidden');
+    if (modalTitle) modalTitle.textContent = 'GUEST ACCESS PROTOCOL';
   } else {
     tabLogin.classList.add('active');
     tabRegister.classList.remove('active');
@@ -153,6 +166,7 @@ async function handleRegister(e) {
     setTimeout(() => {
       closeAuthModal();
       updateUserUI();
+      checkPendingRoomJoin();
     }, 900);
   } catch (err) {
     showAuthMsg(msgEl, 'Network issue. Please try again.', 'error');
@@ -182,7 +196,6 @@ async function handleLogin(e) {
     if (!res.ok) {
       if (data.userNotFound) {
         showAuthMsg(msgEl, `⚠️ ${data.error}`, 'error');
-        // Auto-fill into register and prompt to switch
         const regUser = document.getElementById('reg-username');
         if (regUser) regUser.value = identity;
         setTimeout(() => {
@@ -206,19 +219,26 @@ async function handleLogin(e) {
     setTimeout(() => {
       closeAuthModal();
       updateUserUI();
+      checkPendingRoomJoin();
     }, 800);
   } catch (err) {
     showAuthMsg(msgEl, 'Login request failed. Server offline?', 'error');
   }
 }
 
-function handleGuestLogin() {
-  const chosenAvatar = getSelectedAvatar('reg-avatar-picker');
-  const guestNum = Math.floor(1000 + Math.random() * 9000);
+function handleGuestPrompt() {
+  switchAuthTab('guest');
+}
+
+function handleGuestSubmit() {
+  const customName = document.getElementById('guest-custom-name').value.trim();
+  const chosenAvatar = getSelectedAvatar('guest-avatar-picker');
+  const finalName = customName || `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
+
   currentUser = {
-    id: 'guest_' + guestNum,
-    username: `CyberGuest_${guestNum}`,
-    email: `guest${guestNum}@universe.local`,
+    id: 'guest_' + Date.now(),
+    username: finalName,
+    email: `${finalName.toLowerCase()}@universe.local`,
     avatar: chosenAvatar,
     coins: 1000,
     xp: 0,
@@ -229,6 +249,14 @@ function handleGuestLogin() {
   window.soundFX && window.soundFX.click();
   closeAuthModal();
   updateUserUI();
+  checkPendingRoomJoin();
+}
+
+function checkPendingRoomJoin() {
+  if (pendingRoomJoin && window.multiplayerManager) {
+    window.multiplayerManager.joinRoom(pendingRoomJoin);
+    pendingRoomJoin = null;
+  }
 }
 
 function handleLogout() {
@@ -300,7 +328,7 @@ function updateUserUI() {
     if (nameEl) nameEl.textContent = currentUser.username;
     if (avatarEl) {
       avatarEl.innerHTML = meta.icon;
-      avatarEl.title = `${meta.name} (Click to change)`;
+      avatarEl.title = `${meta.name}`;
     }
     if (coinsEl) coinsEl.textContent = (currentUser.coins || 1000).toLocaleString();
     if (levelEl) levelEl.textContent = `LVL ${currentUser.level || 1}`;
@@ -316,11 +344,22 @@ function showAuthMsg(el, text, type) {
   el.className = `auth-status-msg ${type}`;
 }
 
-function openAuthModal(defaultTab = 'login') {
+function openAuthModal(defaultTab = 'login', inviteRoomCode = null) {
   const modal = document.getElementById('auth-modal');
   if (modal) {
     modal.classList.remove('hidden');
     switchAuthTab(defaultTab);
+
+    const banner = document.getElementById('auth-invite-banner');
+    if (banner) {
+      if (inviteRoomCode) {
+        pendingRoomJoin = inviteRoomCode;
+        banner.textContent = `⚔️ INVITATION: Sign in or choose Guest to enter Room [${inviteRoomCode}]`;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
   }
 }
 
@@ -331,7 +370,8 @@ function closeAuthModal() {
 
 window.authController = {
   init: initAuth,
-  getUser: () => currentUser || { username: 'CyberGamer', avatar: 'cyber_samurai', coins: 1000, level: 1 },
+  getUser: () => currentUser,
+  isLoggedIn: () => !!(currentUser && !currentUser.isGuest),
   openModal: openAuthModal,
   closeModal: closeAuthModal,
   switchTab: switchAuthTab,

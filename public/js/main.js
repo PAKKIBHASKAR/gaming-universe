@@ -1,6 +1,6 @@
 // ==========================================
 // MAIN CONTROLLER & PORTAL ROUTER
-// Manages Modes, Lobby & Arena Switching
+// Manages Modes, Lobby, Arena Switching & Forfeits
 // ==========================================
 class GamingUniverseApp {
   constructor() {
@@ -25,7 +25,7 @@ class GamingUniverseApp {
       });
     }
 
-    // Auth Open Buttons (Distinct Login and Register buttons)
+    // Auth Open Buttons
     const btnOpenLogin = document.getElementById('btn-open-login');
     const btnOpenRegister = document.getElementById('btn-open-register');
 
@@ -47,7 +47,7 @@ class GamingUniverseApp {
       });
     }
 
-    // Auth Tabs (Login vs Register)
+    // Auth Tabs
     const tabLogin = document.getElementById('tab-btn-login');
     const tabRegister = document.getElementById('tab-btn-register');
 
@@ -65,11 +65,11 @@ class GamingUniverseApp {
       });
     });
 
-    // Back to Lobby Button
+    // Back to Lobby Button (With Forfeit Confirmation for Active Multiplayer)
     const backBtn = document.getElementById('btn-back-to-lobby');
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        this.returnToLobby();
+        this.handleExitArena();
       });
     }
 
@@ -92,9 +92,15 @@ class GamingUniverseApp {
 
     if (roomCode) {
       setTimeout(() => {
-        window.multiplayerManager.joinRoom(roomCode);
-        window.multiplayerManager.showToast(`Found invite link for ${gameType ? gameType.toUpperCase() : 'Match'}! Joining room ${roomCode}...`);
-      }, 700);
+        const user = window.authController.getUser();
+        if (user) {
+          window.multiplayerManager.joinRoom(roomCode);
+          window.multiplayerManager.showToast(`Joining Room ${roomCode} for ${gameType ? gameType.toUpperCase() : 'Match'}...`);
+        } else {
+          // Open Auth modal with invitation notice
+          window.authController.openModal('login', roomCode);
+        }
+      }, 600);
     }
   }
 
@@ -109,7 +115,7 @@ class GamingUniverseApp {
     optionsContainer.innerHTML = '';
 
     const modes = [
-      { id: 'ai', title: '🤖 Solo vs AI Computer', desc: 'Sharpen your neural instincts against our autonomous bot.', players: 1, isOnline: false },
+      { id: 'ai', title: '🤖 Solo vs AI Computer', desc: 'Sharpen your instincts against our autonomous bot.', players: 1, isOnline: false },
       { id: 'local_2p', title: '👥 2 Players (Local / Pass & Play)', desc: 'Two warriors on the same screen or keyboard.', players: 2, isOnline: false }
     ];
 
@@ -118,7 +124,7 @@ class GamingUniverseApp {
       modes.push({ id: 'local_4p', title: '🔥 4 Players (Local Championship)', desc: 'Four-way royal galactic championship.', players: 4, isOnline: false });
     }
 
-    // MULTIPLAYER MODES: 2P, 3P, 4P WITH LIVE SHARE LINK!
+    // MULTIPLAYER MODES: 2P, 3P, 4P WITH LIVE SHARE LINK
     modes.push({
       id: 'online_2p',
       title: '🌐 Online 2-Player Room (Share Link)',
@@ -158,7 +164,6 @@ class GamingUniverseApp {
       btn.addEventListener('click', () => {
         modal.classList.add('hidden');
 
-        // Show rules modal first before proceeding to game!
         window.rulesModal.show(gameKey, () => {
           if (m.isOnline) {
             window.multiplayerManager.createRoom(gameKey, m.players);
@@ -186,7 +191,7 @@ class GamingUniverseApp {
     document.getElementById('arena-view').classList.remove('hidden');
     document.getElementById('active-game-title').textContent = `${gameKey.toUpperCase()} ARENA`;
 
-    // Reset and clear chat for every new game!
+    // Clear chat for every new game!
     if (window.multiplayerManager) {
       window.multiplayerManager.clearChat();
     }
@@ -220,6 +225,25 @@ class GamingUniverseApp {
 
     window.activeGameInstance = this.activeGameInstance;
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  handleExitArena() {
+    // If active multiplayer match is running, exiting triggers a forfeit!
+    if (this.activeGameInstance && this.activeGameInstance.isOnline && window.multiplayerManager.currentRoom) {
+      const confirmExit = confirm(
+        '⚠️ FORFEIT WARNING!\n\nExiting this live match will result in a resignation loss for you, and your opponent will win the match.\n\nAre you sure you want to resign and exit?'
+      );
+      if (!confirmExit) return;
+
+      // Notify room of forfeit
+      window.multiplayerManager.socket.emit('player_forfeit', {
+        roomCode: window.multiplayerManager.currentRoom.code
+      });
+
+      window.authController.recordOutcome(this.activeGame, false, 0);
+    }
+
+    this.returnToLobby();
   }
 
   returnToLobby() {

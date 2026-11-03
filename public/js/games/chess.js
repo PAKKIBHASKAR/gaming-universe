@@ -1,6 +1,7 @@
 // ==========================================
 // GAME 1: CYBER CHESS ENGINE & BOARD
 // Supports Single Player vs AI & 2 Players (Local / Online Room)
+// Auto-flips for Player 2 (Black) so both players play from their side!
 // ==========================================
 class CyberChessGame {
   constructor(containerId, options = {}) {
@@ -13,6 +14,9 @@ class CyberChessGame {
     if (this.isOnline && this.roomData) {
       this.myColor = window.multiplayerManager.playerIndex === 0 ? 'w' : 'b';
     }
+
+    // Auto-flip board if user is Black for optimal ergonomic view!
+    this.isFlipped = this.myColor === 'b';
 
     this.PIECES = {
       w: { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' },
@@ -108,11 +112,18 @@ class CyberChessGame {
         </div>
 
         <div class="game-actions-bar">
+          <button class="cyber-btn sm" id="btn-chess-flip">🔄 Flip Board View</button>
           <button class="cyber-btn sm" id="btn-chess-restart">🔄 Reset Board</button>
           <button class="cyber-btn sm secondary" id="btn-chess-rules">📜 View Rules</button>
         </div>
       </div>
     `;
+
+    document.getElementById('btn-chess-flip').addEventListener('click', () => {
+      this.isFlipped = !this.isFlipped;
+      this.drawBoardGrid();
+      window.soundFX && window.soundFX.click();
+    });
 
     document.getElementById('btn-chess-restart').addEventListener('click', () => this.restartGame(true));
     document.getElementById('btn-chess-rules').addEventListener('click', () => {
@@ -127,8 +138,12 @@ class CyberChessGame {
     if (!grid) return;
     grid.innerHTML = '';
 
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
+    for (let dr = 0; dr < 8; dr++) {
+      for (let dc = 0; dc < 8; dc++) {
+        // Apply perspective flip if viewing as Black
+        const r = this.isFlipped ? 7 - dr : dr;
+        const c = this.isFlipped ? 7 - dc : dc;
+
         const square = document.createElement('div');
         const isLight = (r + c) % 2 === 0;
         square.className = `chess-cell ${isLight ? 'light' : 'dark'}`;
@@ -165,20 +180,17 @@ class CyberChessGame {
   handleSquareClick(r, c) {
     if (this.isGameOver) return;
 
-    // In online mode, you can only move your own color
     if (this.isOnline && this.turn !== this.myColor) {
       window.soundFX && window.soundFX.carromFoul();
       return;
     }
 
-    // In AI mode, user moves White
     if (this.mode === 'ai' && this.turn !== 'w') {
       return;
     }
 
     const clickedPiece = this.board[r][c];
 
-    // If already selected a piece, check if click is a valid move
     if (this.selectedSquare) {
       const isTargetMove = this.validMoves.find(m => m.r === r && m.c === c);
       if (isTargetMove) {
@@ -187,7 +199,6 @@ class CyberChessGame {
       }
     }
 
-    // Otherwise select a piece of the current turn color
     if (clickedPiece && clickedPiece[0] === this.turn) {
       this.selectedSquare = { r, c };
       this.validMoves = this.calculateValidMoves(r, c, clickedPiece);
@@ -215,21 +226,18 @@ class CyberChessGame {
       if (target[0] !== color) {
         moves.push({ r: nr, c: nc });
       }
-      return false; // hit piece, stop ray
+      return false;
     };
 
     if (type === 'p') {
       const dir = color === 'w' ? -1 : 1;
       const startRow = color === 'w' ? 6 : 1;
-      // Forward 1
       if (r + dir >= 0 && r + dir <= 7 && !this.board[r + dir][c]) {
         moves.push({ r: r + dir, c });
-        // Forward 2
         if (r === startRow && !this.board[r + 2 * dir][c]) {
           moves.push({ r: r + 2 * dir, c });
         }
       }
-      // Captures
       [-1, 1].forEach(dc => {
         const nr = r + dir;
         const nc = c + dc;
@@ -279,11 +287,9 @@ class CyberChessGame {
       window.soundFX && window.soundFX.chessMove();
     }
 
-    // Move piece
     this.board[to.r][to.c] = piece;
     this.board[from.r][from.c] = '';
 
-    // Pawn Promotion
     if (piece[1] === 'p') {
       if ((piece[0] === 'w' && to.r === 0) || (piece[0] === 'b' && to.r === 7)) {
         this.board[to.r][to.c] = piece[0] + 'q';
@@ -302,7 +308,6 @@ class CyberChessGame {
     this.drawBoardGrid();
     this.updateStatus();
 
-    // AI Turn
     if (!this.isGameOver && this.mode === 'ai' && this.turn === 'b') {
       setTimeout(() => this.makeAIMove(), 500);
     }

@@ -63,7 +63,7 @@
         <div class="game-card-icon">♟️</div>
         <h3 class="game-card-title">CYBER CHESS</h3>
         <span class="game-card-badge">MINIMAX AI • 2 PLAYERS • MULTIPLAYER</span>
-        <p class="game-card-desc">Tactical warfare on a glowing 8x8 matrix. Play vs our neural bot or battle an online rival with move highlights and live checkmate alerts.</p>
+        <p class="game-card-desc">Tactical warfare on a glowing 8x8 matrix. Auto-flips for Player 2 so both players play from their ergonomic perspective. Features move highlights and live check alerts.</p>
         <div class="game-card-footer">
           <button class="cyber-btn primary-glow btn-launch-game">ENTER CHESS MATRIX</button>
         </div>
@@ -74,7 +74,7 @@
         <div class="game-card-icon">🎯</div>
         <h3 class="game-card-title">QUANTUM CARROM</h3>
         <span class="game-card-badge">2D PHYSICS • 1P TO 4P • AIM LASER</span>
-        <p class="game-card-desc">Frictionless table physics with elastic coin impacts, pocket suction, laser aim trajectory, and power pull. Supports 2P, 3P & 4P multiplayer.</p>
+        <p class="game-card-desc">Frictionless tournament board with realistic striker aim line, power slider, coin collisions, and pocket suction. Supports 2P, 3P & 4P multiplayer.</p>
         <div class="game-card-footer">
           <button class="cyber-btn primary-glow btn-launch-game">ENTER CARROM ARENA</button>
         </div>
@@ -95,8 +95,8 @@
       <div class="game-cyber-card" data-game="snakes">
         <div class="game-card-icon">🐍</div>
         <h3 class="game-card-title">SNAKES & LADDERS</h3>
-        <span class="game-card-badge">2P / 3P / 4P • PORTALS & GLITCHES</span>
-        <p class="game-card-desc">Ascend the 100-cell neon tower! Ride laser beam ladders for instant teleports and evade malicious glitch-snakes waiting to drag you down.</p>
+        <span class="game-card-badge">2P / 3P / 4P • REALISTIC SNAKES & LADDERS</span>
+        <p class="game-card-desc">Ascend the 100-cell tower! Features visual curving serpents and 3D metallic ladders across the board, with cinematic climb boosts and snake bite ambushes.</p>
         <div class="game-card-footer">
           <button class="cyber-btn primary-glow btn-launch-game">ENTER MATRIX RUN</button>
         </div>
@@ -107,7 +107,7 @@
   <!-- ACTIVE GAME ARENA VIEW (Hidden until launched) -->
   <main id="arena-view" class="arena-view-container hidden">
     <div class="arena-header-bar">
-      <button class="cyber-btn sm secondary" id="btn-back-to-lobby">⬅ BACK TO UNIVERSE</button>
+      <button class="cyber-btn sm secondary" id="btn-back-to-lobby">⬅ BACK TO UNIVERSE (RESIGN)</button>
       <h2 class="arena-title" id="active-game-title">GAME ARENA</h2>
       
       <!-- Live Chat Toggle Button -->
@@ -143,12 +143,16 @@
   <div class="modal-overlay hidden" id="auth-modal">
     <div class="modal-cyber-box">
       <button class="modal-close-btn" id="btn-close-auth">&times;</button>
+      
+      <!-- Invite Banner (shown if opened via share link) -->
+      <div id="auth-invite-banner" class="invite-banner-pill hidden">⚔️ INVITATION TO ROOM</div>
+
       <h3 class="modal-title" id="auth-modal-title">CYBER IDENTITY</h3>
-      <p class="modal-subtitle">Register a new account or log in with your existing codename.</p>
+      <p class="modal-subtitle">Log in, register an account, or enter as a guest warrior.</p>
 
       <div class="auth-tabs-row">
-        <button class="auth-tab-btn active" id="tab-btn-login">⚡ LOGIN (RETURNING)</button>
-        <button class="auth-tab-btn" id="tab-btn-register">✨ SIGN UP (NEW ACCOUNT)</button>
+        <button class="auth-tab-btn active" id="tab-btn-login">⚡ LOGIN</button>
+        <button class="auth-tab-btn" id="tab-btn-register">✨ SIGN UP</button>
       </div>
 
       <!-- Login Form (Panel 1) -->
@@ -195,6 +199,19 @@
         <div class="auth-switch-helper">
           Already have an account? <span id="link-to-login">Click here to Log In!</span>
         </div>
+      </div>
+
+      <!-- Guest Name & Avatar Form (Panel 3) -->
+      <div id="panel-guest" class="hidden">
+        <div class="form-group">
+          <label>ENTER YOUR GUEST NAME</label>
+          <input type="text" id="guest-custom-name" class="cyber-input" placeholder="e.g. GhostRider" maxlength="18">
+        </div>
+        <div class="form-group">
+          <label>PICK YOUR GUEST AVATAR</label>
+          <div class="avatar-picker-grid" id="guest-avatar-picker"></div>
+        </div>
+        <button type="button" class="cyber-btn primary-glow" id="btn-submit-guest" style="width:100%">🎮 ENTER AS GUEST</button>
       </div>
 
       <div style="margin-top: 1.2rem; text-align: center;">
@@ -245,11 +262,16 @@
         <button class="cyber-btn primary-glow sm" id="btn-copy-room-link">🔗 COPY SHARE LINK</button>
       </div>
 
-      <!-- Player Customization Row in Room -->
-      <div class="room-customize-bar">
-        <label>YOUR DISPLAY NAME IN ROOM:</label>
+      <!-- Account Verified Notification (If logged in, no retyping needed!) -->
+      <div id="room-account-status" class="room-account-badge hidden">
+        🛡️ Linked to Cyber Account: <b id="room-verified-username">Warrior</b>
+      </div>
+
+      <!-- Guest Customization Bar (Only shown if playing as guest) -->
+      <div id="room-guest-edit-bar" class="room-customize-bar hidden">
+        <label>GUEST DISPLAY NAME:</label>
         <input type="text" id="room-player-name-edit" class="cyber-input" placeholder="Your room name..." maxlength="20">
-        <label style="margin-top:0.4rem;">CHANGE AVATAR:</label>
+        <label style="margin-top:0.4rem;">GUEST AVATAR:</label>
         <div class="avatar-picker-grid" id="room-avatar-picker"></div>
       </div>
 

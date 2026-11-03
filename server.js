@@ -413,12 +413,31 @@ io.on('connection', (socket) => {
     });
   });
 
+  // PLAYER FORFEITS / EXITS MATCH (Opponent wins!)
+  socket.on('player_forfeit', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (!room || !room.started) return;
+
+    const forfeitingPlayer = room.players.find(p => p.id === socket.id);
+    const remainingPlayers = room.players.filter(p => p.id !== socket.id);
+
+    if (forfeitingPlayer && remainingPlayers.length > 0) {
+      const winner = remainingPlayers[0];
+      io.to(roomCode).emit('match_forfeited', {
+        forfeitingPlayerName: forfeitingPlayer.name,
+        winnerName: winner.name,
+        winnerIndex: winner.index
+      });
+      room.started = false;
+      console.log(`🏳️ ${forfeitingPlayer.name} forfeited. ${winner.name} won room ${roomCode}`);
+    }
+  });
+
   // Relay game actions (board moves, dice rolls, striker shots)
   socket.on('game_action', ({ roomCode, actionType, payload }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
 
-    // Relay to other players in room
     socket.to(roomCode).emit('game_action_received', {
       senderId: socket.id,
       actionType,
@@ -426,7 +445,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // In-game live chat (works both in room and during active match)
+  // In-game live chat
   socket.on('send_chat', ({ roomCode, senderName, avatar, text }) => {
     if (!roomCode || !text) return;
     io.to(roomCode).emit('new_chat_message', {
@@ -450,6 +469,21 @@ io.on('connection', (socket) => {
     const code = socket.currentRoom;
     if (code && rooms.has(code)) {
       const room = rooms.get(code);
+      const leavingPlayer = room.players.find(p => p.id === socket.id);
+
+      if (room.started && leavingPlayer) {
+        const remaining = room.players.filter(p => p.id !== socket.id);
+        if (remaining.length > 0) {
+          const winner = remaining[0];
+          io.to(code).emit('match_forfeited', {
+            forfeitingPlayerName: leavingPlayer.name,
+            winnerName: winner.name,
+            winnerIndex: winner.index
+          });
+          room.started = false;
+        }
+      }
+
       room.players = room.players.filter(p => p.id !== socket.id);
 
       if (room.players.length === 0) {
